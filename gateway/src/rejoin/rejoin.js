@@ -3,6 +3,22 @@ import {HttpError, sendError, validPoint} from '../route.js';
 const MAX_TRACK_POINTS = 5000;
 import {candidates, haversineM, maxDistanceM, meanDistanceM, project, trackLengthM} from './geometry.js';
 
+// Il percorso del motore parte dalla via piu' vicina: il tratto in linea d'aria
+// dalla persona fino a li' entra nella geometria e nella distanza, marcato
+// come fuori sentiero (overview, "rientro sulla traccia").
+function fromPerson(route, position, offM) {
+  if (!route || offM <= 0) return route;
+  const c = route.geometry.coordinates;
+  const ele = c[0]?.[2];
+  return {
+    ...route,
+    distanceM: route.distanceM + offM,
+    geometry: {...route.geometry, coordinates: [ele === undefined ? [...position] : [...position, ele], ...c]},
+    segments: [{from: 0, to: 1, offTrail: true, difficulty: null, origin: 'none', roadClass: null},
+               ...(route.segments ?? []).map(s => ({...s, from: s.from + 1, to: s.to + 1}))],
+  };
+}
+
 function toGpx(track) {
   const pts = track.map(([lon, lat]) => `<trkpt lat="${lat}" lon="${lon}"></trkpt>`).join('');
   return `<?xml version="1.0"?><gpx version="1.1" creator="wm-routing"><trk><trkseg>${pts}</trkseg></trk></gpx>`;
@@ -62,15 +78,18 @@ export function makeRejoinHandler({config, engine, compute, bands, offsetsM, mat
         if (results.some(r => r.reason?.status === 503)) throw new HttpError(503, 'riprova');
         throw new HttpError(404, 'nessun_percorso');
       }
-      const out = {stato: 'rientro', joinAtM: best.cand.alongM, route: best.route};
       const snappedStart = best.route.snapped?.coordinates?.[0];
       const off = snappedStart ? haversineM(position, snappedStart) : 0;
-      out.offPathM = off > 20 ? off : 0;
+      const out = {stato: 'rientro', joinAtM: best.cand.alongM, offPathM: off > 20 ? off : 0,
+                   route: fromPerson(best.route, position, off)};
       // ritorno al punto gia' raggiunto, se costa meno di un terzo del rientro scelto
       if (dir === 'forward' && best.cand.alongM - reached > 1) {
         const back = await compute(req.shard, profile, [position, project(track, position, reached, reached).point], {checkSnap: false})
           .catch(() => null);
-        if (back && back.distanceM < best.route.distanceM / 3) out.backToReached = back;
+        if (back && back.distanceM < best.route.distanceM / 3) {
+          const bs = back.snapped?.coordinates?.[0];
+          out.backToReached = fromPerson(back, position, bs ? haversineM(position, bs) : 0);
+        }
       }
       res.json(out);
     } catch (e) { sendError(res, e); }

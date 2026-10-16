@@ -93,9 +93,15 @@ export function makeRouteCore({config, engine, waysDb, dataStamp, retry = {}, mo
     }
     const p = r.json.paths[0];
     const mode = config.profiles[engineProfile].mode;
+    const snappedPts = p.snapped_waypoints?.coordinates;
     const offTrailPoints = checkSnap
-      ? await checkSnapping({shard, engineProfile, mode, points, req, snapped: p.snapped_waypoints?.coordinates})
+      ? await checkSnapping({shard, engineProfile, mode, points, req, snapped: snappedPts})
       : [];
+    // il motore parte e arriva nel punto agganciato alla via: il raccordo e' il
+    // tratto in linea d'aria fra il punto chiesto e quello, da disegnare
+    const connectors = (snappedPts ?? [])
+      .map((s, i) => ({punto: i, from: points[i], to: [s[0], s[1]], distanceM: Math.round(haversineM(points[i], s))}))
+      .filter(c => c.from && c.distanceM >= 1);
     const summary = summarizeDetails(p, waysDb);
     const segments = summary.segments.map(seg => ({...seg, profile: publicProfile}));
     const {unknownShare} = summary;
@@ -109,7 +115,7 @@ export function makeRouteCore({config, engine, waysDb, dataStamp, retry = {}, mo
         : p.time / 3600000,
       geometry: p.points, snapped: p.snapped_waypoints, segments, unknownShare,
       warning: WARNING, snowWarning: maxEle > SNOW_M && SNOW_MONTHS.has(month()),
-      offTrailPoints,
+      offTrailPoints, connectors,
     };
   };
 }
@@ -144,13 +150,14 @@ export function makeFallbackRoute({config, compute}) {
 }
 
 function mergeLegs(config, shard, profile, legs) {
-  const coords = [], segments = [], off = new Map();
+  const coords = [], segments = [], off = new Map(), conn = new Map();
   let distanceM = 0, ascendM = 0, descendM = 0, timeH = 0, unknownM = 0;
   legs.forEach(({r}, k) => {
     const shift = coords.length ? coords.length - 1 : 0;
     coords.push(...(k ? r.geometry.coordinates.slice(1) : r.geometry.coordinates));
     for (const seg of r.segments) segments.push({...seg, from: seg.from + shift, to: seg.to + shift});
     for (const x of r.offTrailPoints ?? []) off.set(k + x.punto, {punto: k + x.punto, distanceM: x.distanceM});
+    for (const c of r.connectors ?? []) conn.set(k + c.punto, {...c, punto: k + c.punto});
     distanceM += r.distanceM; ascendM += r.ascendM ?? 0; descendM += r.descendM ?? 0; timeH += r.timeH;
     unknownM += (r.unknownShare ?? 0) * r.distanceM;
   });
@@ -165,6 +172,7 @@ function mergeLegs(config, shard, profile, legs) {
     segments, unknownShare: distanceM ? unknownM / distanceM : 0,
     snowWarning: legs.some(({r}) => r.snowWarning),
     offTrailPoints: [...off.values()].sort((a, b) => a.punto - b.punto),
+    connectors: [...conn.values()].sort((a, b) => a.punto - b.punto),
     fallbackLegs: legs.map(({profile: p}, k) => ({from: k, to: k + 1, profile: p})).filter(x => x.profile !== profile),
   };
 }

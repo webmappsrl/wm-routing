@@ -80,6 +80,10 @@ nell'app restano inutilizzati.
       punto 8 e il 9 il percorso contiene tratti oltre il tuo profilo"
 - [ ] Il profilo `libero` (qualsiasi via a piedi) si propone solo come scelta
       esplicita, con un avviso: comprende vie ferrate e ghiacciai
+- [ ] I `connectors` della risposta (dal punto messo dall'utente al punto
+      agganciato alla via) si disegnano punteggiati, perche' il percorso del
+      motore parte e arriva sulla via; nel rientro il primo segmento con
+      `offTrail: true` e' il tratto in linea d'aria dalla persona alla via
 - [ ] Se la risposta ha `offTrailPoints` (punti messi fuori dai sentieri,
       agganciati alla via piu' vicina), l'app lo dice all'utente con la
       distanza

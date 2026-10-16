@@ -137,3 +137,11 @@ it('aggancio vicino (entro 50 m): il percorso va bene', async () => {
     snapped_waypoints: {type: 'MultiPoint', coordinates: [[10.0002, 44.0001], [10.0101, 44.0002]]}})]}});
   expect((await request(make(near)).post('/v1/s/route').send(body)).status).toBe(200);
 });
+it('raccordi: per ogni punto il tratto fra il punto chiesto e quello agganciato', async () => {
+  const near = async () => ({ok: true, status: 200, json: {paths: [ghPath({
+    snapped_waypoints: {type: 'MultiPoint', coordinates: [[10, 44], [10.0101, 44.0002]]}})]}});
+  const r = await request(make(near)).post('/v1/s/route').send(body);
+  expect(r.body.connectors).toEqual([
+    {punto: 1, from: [10.01, 44], to: [10.0101, 44.0002], distanceM: expect.any(Number)}]);
+  expect(r.body.connectors[0].distanceM).toBeGreaterThan(20);
+});

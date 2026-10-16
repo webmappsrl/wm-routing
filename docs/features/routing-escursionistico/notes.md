@@ -122,6 +122,16 @@
 
 ## Bug trovati
 
+- **Il percorso non partiva dal punto cliccato** (segnalato dal dev): il motore
+  parte e arriva nel punto agganciato alla via (4 m e 32 m nel caso
+  segnalato), e nel rientro la linea partiva dalla via invece che dalla
+  persona. Ora il calcolo del tracciato restituisce `connectors` (punto
+  chiesto, punto agganciato, distanza) e la preview li disegna punteggiati per
+  entrambi i motori; nel rientro il tratto fuori sentiero entra nella geometria
+  e nella distanza, come primo segmento con `offTrail: true`, cosi' il rientro
+  parte esattamente dalla persona (overview, "rientro sulla traccia"). Test
+  "raccordi" e "il rientro parte esattamente dalla persona". Corretto.
+
 - **Percorso rifiutato con tutti i profili** (segnalato dal dev con la
   preview): un punto messo fuori da ogni sentiero (242 m dalla via piu'
   vicina) faceva rispondere `meta_non_raggiungibile` a ogni profilo. Il

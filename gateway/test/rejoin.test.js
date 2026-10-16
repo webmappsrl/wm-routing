@@ -74,3 +74,11 @@ it('traccia con punti non validi o troppo lunga: 400', async () => {
   const long = Array.from({length: 5001}, (_, i) => [10 + i * 1e-5, 44]);
   expect((await post({track: long, position: [10, 44.002], progressM: 0})).body.stato).toBe('traccia_non_valida');
 });
+it('il rientro parte esattamente dalla persona: il tratto fuori sentiero sta nella geometria', async () => {
+  const pos = [10.005, 44.002];
+  const r = await post({position: pos, progressM: 0});
+  const g = r.body.route.geometry.coordinates;
+  expect(g[0].slice(0, 2)).toEqual(pos);
+  expect(r.body.route.segments[0]).toMatchObject({from: 0, to: 1, offTrail: true});
+  expect(r.body.route.distanceM).toBeGreaterThan(r.body.offPathM);
+});

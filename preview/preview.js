@@ -58,6 +58,7 @@ const LINES = [
   {label: 'Ritorno al punto già raggiunto', color: '#00b8d4', width: 4},
   {label: 'Punto del giro (numerato)', color: '#111', dot: true},
   {label: 'Posizione simulata della persona', color: '#00c853', dot: true},
+  {label: 'Raccordo in linea d\'aria: dal punto cliccato alla via dove parte il percorso', color: '#555', dash: true},
   {label: 'Area coperta dai dati', color: '#e53935', dash: true},
   {label: 'Tratto calcolato con un profilo più permissivo (bordo tratteggiato)', color: '#111', dash: true},
 ];
@@ -201,8 +202,11 @@ async function routeProd() {
   const j = await r.json();
   if (!r.ok) throw new Error('Produzione: ' + j.message);
   const p = j.paths[0];
+  const snapped = p.snapped_waypoints?.coordinates ?? [];
+  const connectors = snapped.map((sp, i) => ({punto: i, from: state.points[i], to: [sp[0], sp[1]]}))
+    .filter(c => c.from && (Math.abs(c.from[0] - c.to[0]) + Math.abs(c.from[1] - c.to[1])) > 1e-5);
   return {distanceM: p.distance, ascendM: p.ascend, descendM: p.descend, timeH: p.time / 3600000,
-          geometry: p.points, timeSource: 'velocità del motore',
+          geometry: p.points, timeSource: 'velocità del motore', connectors,
           segments: (p.details.foot_network ?? []).map(([from, to, v]) => ({from, to, network: v}))};
 }
 
@@ -235,6 +239,11 @@ function draw() {
     if (state.highlight)
       addLine(c.slice(state.highlight.from, state.highlight.to + 1), lineStyle('rgba(255,214,0,0.85)', 12), {highlight: true});
   }
+  for (const [name, r] of Object.entries(state.results))
+    for (const c of r.connectors ?? [])
+      addLine([c.from, c.to], lineStyle(name === 'nuovo' ? '#555555' : '#1f6feb', 2, [2, 4]),
+        {info: {title: `Raccordo (${name === 'nuovo' ? 'motore nuovo' : 'produzione'}): ` +
+          `${c.distanceM ?? ''}${c.distanceM !== undefined ? ' m ' : ''}in linea d'aria dal punto ${c.punto + 1} alla via`}});
   state.points.forEach((p, i) => routeSource.addFeature(new ol.Feature({
     geometry: new ol.geom.Point(ol.proj.fromLonLat(p)),
     style: new ol.style.Style({
@@ -504,9 +513,15 @@ async function rejoin(position) {
     style: new ol.style.Style({image: new ol.style.Circle({radius: 7, fill: new ol.style.Fill({color: '#00c853'}),
       stroke: new ol.style.Stroke({color: '#fff', width: 2})})})}));
   if (j.stato !== 'rientro') { $('rejoin-result').textContent = explain(j); return; }
-  addLine(j.route.geometry.coordinates, lineStyle('#00c853', 4), {info: {title: 'Rientro sulla traccia'}});
-  if (j.backToReached)
-    addLine(j.backToReached.geometry.coordinates, lineStyle('#00b8d4', 4), {info: {title: 'Ritorno al punto già raggiunto'}});
+  // il primo tratto, se e' fuori sentiero, va dalla persona alla via: punteggiato
+  const drawFromPerson = (route, color, title) => {
+    const c = route.geometry.coordinates;
+    const offTrail = route.segments?.[0]?.offTrail;
+    if (offTrail) addLine(c.slice(0, 2), lineStyle(color, 3, [2, 5]), {info: {title: `${title}: tratto fuori sentiero, in linea d'aria`}});
+    addLine(offTrail ? c.slice(1) : c, lineStyle(color, 4), {info: {title}});
+  };
+  drawFromPerson(j.route, '#00c853', 'Rientro sulla traccia');
+  if (j.backToReached) drawFromPerson(j.backToReached, '#00b8d4', 'Ritorno al punto già raggiunto');
   $('rejoin-result').textContent = `Rientro: ${(j.route.distanceM / 1000).toFixed(2)} km, ricongiunge la traccia ` +
     `a ${(j.joinAtM / 1000).toFixed(2)} km dalla partenza` +
     (j.offPathM ? `; il primo tratto, ${Math.round(j.offPathM)} m, è fuori sentiero (in linea d'aria)` : '') +
