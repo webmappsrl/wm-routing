@@ -123,7 +123,11 @@ implementazione, in OpenLayers come l'app.
 - [ ] **Segnavia**: ogni tratto ha `ref` (es. `"00;139"`, piu' segnavia
       separati da `;`). Si mostrano nei dettagli e in sintesi ("Segnavia: 00
       5,2 km, 139 1,1 km"). Richiede un grafo costruito con il pre-passo dal
-      commit `e9c1d47` in poi: con una tabella laterale vecchia `ref` e' null
+      commit `e9c1d47` in poi: con una tabella laterale vecchia `ref` e' null. Il
+      segnavia si scrive anche LUNGO il tracciato (`ol.style.Text` con
+      `placement: 'line'` e `repeat`), e i dettagli del tratto portano
+      `osmWayId` (la via OSM, gia' nei details di GraphHopper): utile per
+      verificare un dato alla fonte
 - [ ] **GPX**: si genera sul client dalla geometria (traccia con quote) e dai
       punti (wpt, col nome se la tappa viene da un POI): `toGpx()` della
       preview e' riusabile tale e quale
