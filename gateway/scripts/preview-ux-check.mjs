@@ -162,6 +162,12 @@ await page.waitForFunction(() => window.__wm.state.results.nuovo, null, {timeout
 const dragFrom = await page.evaluate(() => {
   const {map, state} = window.__wm;
   const c = state.results.nuovo.geometry.coordinates;
+  const marks = (state.alongRoute ?? []).map(x => map.getPixelFromCoordinate(ol.proj.fromLonLat(x.coord)));
+  for (let i = Math.floor(c.length * 0.2); i < c.length; i++) {
+    const px = map.getPixelFromCoordinate(ol.proj.fromLonLat(c[i].slice(0, 2)));
+    if (px[0] > 60 && px[0] < 860 && px[1] > 140 && px[1] < 680
+        && marks.every(mp => Math.hypot(mp[0] - px[0], mp[1] - px[1]) > 25)) return px;
+  }
   return map.getPixelFromCoordinate(ol.proj.fromLonLat(c[Math.floor(c.length / 4)].slice(0, 2)));
 });
 const nPts2 = await page.evaluate(() => window.__wm.state.points.length);
