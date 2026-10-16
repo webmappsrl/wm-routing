@@ -46,3 +46,8 @@ it("/v1/version dice anche l'area coperta dai dati, per disegnarla nella preview
   const a = createApp({config, area: [10, 43, 11, 44], dataStamp: () => ({osm: 'X'})});
   expect((await request(a).get('/v1/version')).body).toEqual({osm: 'X', area: [10, 43, 11, 44]});
 });
+it('la radice porta alla preview, come le tile', async () => {
+  const r = await request(app()).get('/');
+  expect(r.status).toBe(302);
+  expect(r.headers.location).toBe('/preview/');
+});

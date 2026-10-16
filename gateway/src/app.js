@@ -16,6 +16,9 @@ export function createApp({config, dataStamp, area, handlers = {}}) {
   const limiters = Object.fromEntries(
     Object.entries(config.shards).map(([id, s]) => [id, createRateLimiter(s.rate)]));
 
+  // chi apre l'indirizzo del servizio trova la preview, come per le tile
+  app.get('/', (_req, res) => res.redirect(302, '/preview/'));
+
   app.get('/v1/version', (_req, res) => {
     res.set('Cache-Control', 'no-cache').json(area ? {...dataStamp(), area} : dataStamp());
   });
