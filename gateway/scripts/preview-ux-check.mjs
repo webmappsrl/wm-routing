@@ -77,6 +77,28 @@ check((await txt('#warning'))?.includes('esperto'), 'avviso sui tratti calcolati
     await page.waitForFunction(() => window.__wm.state.results.nuovo, null, {timeout: 30000}).catch(() => {});
     await page.locator('#undo').click({timeout: 3000}).catch(() => {});
     await page.waitForFunction(() => window.__wm.state.results.nuovo, null, {timeout: 30000}).catch(() => {});
+    // sul pc: clic sul pallino -> finestrella appuntata che resta anche muovendo il mouse
+    const mpx = await page.evaluate(() => {
+      const {map, state} = window.__wm;
+      map.getView().setCenter(ol.proj.fromLonLat(state.alongRoute[0].coord));
+      map.renderSync();
+      return map.getPixelFromCoordinate(ol.proj.fromLonLat(state.alongRoute[0].coord));
+    });
+    await page.mouse.click(mpx[0], mpx[1]);
+    await page.waitForTimeout(400);
+    await page.mouse.move(mpx[0] + 120, mpx[1] + 80);
+    await page.waitForTimeout(400);
+    check(await page.locator('#tooltip.pinned').isVisible().catch(() => false),
+      'la finestrella del pallino resta aperta muovendo il mouse');
+    const fa = page.locator('#tooltip button', {hasText: 'Fanne una tappa'});
+    check(await fa.isVisible().catch(() => false), 'pulsante "Fanne una tappa" raggiungibile');
+    const nA = await page.evaluate(() => window.__wm.state.points.length);
+    await fa.click({timeout: 3000}).catch(() => fails.push('"Fanne una tappa" non cliccabile'));
+    check(await page.waitForFunction(n => window.__wm.state.points.length === n + 1, nA, {timeout: 10000})
+      .then(() => true, () => false), '"Fanne una tappa" aggiunge la tappa');
+    await page.waitForFunction(() => window.__wm.state.results.nuovo, null, {timeout: 30000}).catch(() => {});
+    await page.locator('#undo').click({timeout: 3000}).catch(() => {});
+    await page.waitForFunction(() => window.__wm.state.results.nuovo, null, {timeout: 30000}).catch(() => {});
   }
 }
 // frecce del verso di percorrenza sul tracciato
@@ -111,6 +133,17 @@ await page.waitForFunction(() => window.__wm.state.results.nuovo, null, {timeout
 const midPx = await page.evaluate(() => {
   const {map, state} = window.__wm;
   const c = state.results.nuovo.geometry.coordinates;
+  // il sotto-test del pallino ha spostato la vista: si reinquadra il percorso
+  const ext = ol.extent.boundingExtent(c.map(p => ol.proj.fromLonLat(p.slice(0, 2))));
+  map.getView().fit(ext, {padding: [140, 420, 120, 60], maxZoom: 15});
+  map.renderSync();
+  const marks = (state.alongRoute ?? []).map(x => map.getPixelFromCoordinate(ol.proj.fromLonLat(x.coord)));
+  // un punto del tracciato visibile e lontano dai pallini di "lungo il giro"
+  for (let i = Math.floor(c.length * 0.3); i < c.length; i++) {
+    const px = map.getPixelFromCoordinate(ol.proj.fromLonLat(c[i].slice(0, 2)));
+    if (px[0] > 40 && px[0] < 900 && px[1] > 120 && px[1] < 700
+        && marks.every(mp => Math.hypot(mp[0] - px[0], mp[1] - px[1]) > 25)) return px;
+  }
   return map.getPixelFromCoordinate(ol.proj.fromLonLat(c[Math.floor(c.length / 2)].slice(0, 2)));
 });
 const nPts = await page.evaluate(() => window.__wm.state.points.length);

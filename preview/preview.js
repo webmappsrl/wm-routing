@@ -687,6 +687,7 @@ const featureAt = (pixel, tol) =>
 map.on('pointermove', e => {
   if (touch.matches) return;          // sul telefono i dettagli arrivano al tocco
   const tip = $('tooltip');
+  if (tip.classList.contains('pinned')) return;   // la finestrella appuntata resta: si chiude coi suoi pulsanti o cliccando altrove
   const f = featureAt(e.pixel, 4);
   map.getTargetElement().style.cursor = f ? 'pointer' : '';
   if (!f) {
