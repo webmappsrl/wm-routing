@@ -143,6 +143,23 @@ riavviato anche wm-tiles. Le quote sono l'intero z13 d'Italia (4,6 GB, prima
 della correzione di `pack-terrain.py`): lasciate, servono all'import
 nazionale.
 
+### Preview su telefono (16 ottobre 2026)
+
+Richiesta dell'utente dopo il primo avvio. Sotto i 760 px: mappa a tutto
+schermo, pannello che sale dal basso con tre altezze (chiuso, meta', quasi
+tutto; maniglia a tocco o trascinata), contenuto diviso in schede (Percorso,
+Punti, Opzioni, Legenda, Rientro), e una riga di riepilogo sempre visibile:
+cosa fare, il calcolo in corso, l'errore o km, salita e tempo dei due motori.
+Sul telefono non c'e' il passaggio del mouse: un tocco su un tratto ne apre i
+dettagli, con "Aggiungi un punto qui", e un tocco altrove aggiunge il punto.
+Un pulsante (anche sul desktop) inquadra il percorso, e all'apertura di un
+link con dei punti lo si inquadra sopra il pannello. Campi a 16 px: sotto,
+iOS ingrandisce la pagina al tocco. Il desktop resta com'era, salvo gli
+avvisi spostati sotto la testata, cosi' su telefono si vedono in ogni scheda.
+Controllo: `gateway/scripts/preview-mobile-check.mjs` su iPhone 13, iPhone SE
+(320 px), Pixel 5, Galaxy S9+. Su Galaxy S9+ (4,5 pixel per punto) il browser
+senza GPU disegna lentamente: i tocchi del controllo aspettano fino a 10 s.
+
 ## Bug trovati
 
 - **Il percorso non partiva dal punto cliccato** (segnalato dal dev): il motore
@@ -256,6 +273,13 @@ nazionale.
 
 ## Follow-up
 
+- **Rientro lento su tracce lunghe**: su un giro di 17 km (1.040 vertici) il
+  rientro ha risposto in 39 s sulla cella di Pisa in locale; sul giro di 9 km in
+  pochi secondi. Da misurare quale passo pesa (map matching della traccia o i
+  tre candidati) prima di usarlo nell'app.
+- **Log del gateway**: il campo `route` esce `/v1/:shard/v1/preview/route`
+  invece di `/v1/:shard/route` (`req.path` dentro `app.use` porta il percorso
+  intero). Solo estetico: nessuna coordinata.
 - **Rimandati dalla revisione finale** (minori): il map matching fallito usa la
   traccia grezza senza dirlo; la mappa dei secchi del limite di richieste non
   si svuota mai; i limiti di prova non stanno nell'URL della preview;

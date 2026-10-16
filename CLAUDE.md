@@ -22,6 +22,7 @@ identificatori nel codice in inglese.
 | motore sulla rete sintetica | `bash engine/tests/smoke.sh` |
 | nessuna coordinata nei log | `bash tools/log-check.sh` |
 | preview | `cd gateway && node scripts/preview-check.mjs` |
+| preview spiegata e su telefono | `cd gateway && node scripts/preview-ux-check.mjs && node scripts/preview-mobile-check.mjs [url] ["iPhone SE"]` |
 | confronto con la produzione | `node tools/compare.mjs --giro <nome>` |
 | costruire e scambiare il grafo | `bash tools/build-graph.sh <pbf> <terrain.pmtiles>` (runbook) |
 

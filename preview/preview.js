@@ -127,6 +127,92 @@ function drawLegends() {
   $('legend-colors').innerHTML = COLOR_SETS[$('colorBy').value].map(c => `<li>${swatch(c)}${c.label}</li>`).join('');
 }
 
+// --- telefono: pannello dal basso, schede, riepilogo --------------------------
+
+const mobile = matchMedia('(max-width: 760px)');
+const touch = matchMedia('(pointer: coarse)');
+// tre altezze: chiuso (riepilogo e schede), meta' schermo, quasi tutto
+const safeBottom = () => parseFloat(getComputedStyle($('panel')).paddingBottom) || 0;
+const SHEET = {low: () => $('sheet-top').offsetHeight + safeBottom() + 2, mid: () => innerHeight * 0.5, high: () => innerHeight * 0.88};
+function sheetHeight(h) {
+  document.documentElement.style.setProperty('--sheet-h', `${Math.round(h)}px`);
+}
+function setSheet(name) {
+  document.body.dataset.sheet = name;
+  sheetHeight(SHEET[name]());
+  if (name !== 'low' && document.body.dataset.tab === 'percorso') requestAnimationFrame(drawProfile);
+}
+function setTab(tab) {
+  document.body.dataset.tab = tab;
+  document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
+  $('panel-body').scrollTop = 0;
+  if (tab === 'percorso') requestAnimationFrame(drawProfile);   // nascosto, il canvas ha larghezza zero
+}
+document.querySelectorAll('#tabs button').forEach(b => b.addEventListener('click', () => {
+  setTab(b.dataset.tab);
+  if (document.body.dataset.sheet === 'low') setSheet('mid');
+}));
+
+// la maniglia: un tocco passa all'altezza successiva, trascinandola si sceglie
+{
+  const order = ['low', 'mid', 'high'];
+  let start = null;
+  const handle = $('sheet-handle'), panel = $('panel');
+  handle.addEventListener('pointerdown', e => {
+    start = {y: e.clientY, h: panel.offsetHeight, moved: false};
+    handle.setPointerCapture(e.pointerId);
+    panel.classList.add('dragging');
+  });
+  handle.addEventListener('pointermove', e => {
+    if (!start) return;
+    const dy = start.y - e.clientY;
+    if (Math.abs(dy) > 6) start.moved = true;
+    if (start.moved) sheetHeight(Math.max(SHEET.low(), Math.min(SHEET.high(), start.h + dy)));
+  });
+  const end = () => {
+    if (!start) return;
+    panel.classList.remove('dragging');
+    if (!start.moved) {
+      const cur = order.indexOf(document.body.dataset.sheet);
+      setSheet(order[(cur + 1) % order.length]);
+    } else {
+      const h = panel.offsetHeight;
+      setSheet(order.reduce((a, b) => (Math.abs(SHEET[b]() - h) < Math.abs(SHEET[a]() - h) ? b : a)));
+    }
+    start = null;
+  };
+  handle.addEventListener('pointerup', end);
+  handle.addEventListener('pointercancel', end);
+}
+addEventListener('resize', () => setSheet(document.body.dataset.sheet ?? 'low'));
+
+// la riga del pannello chiuso: cosa fare, oppure il riepilogo dei due motori
+function drawMini() {
+  const el = $('mini');
+  if (!el) return;
+  const {nuovo, produzione} = state.results;
+  const line = (name, r) => `${name} <b>${(r.distanceM / 1000).toFixed(1)} km · +${Math.round(r.ascendM ?? 0)} m · ` +
+    `${hours(r.timeH)}</b>`;
+  const err = $('err').textContent.trim();
+  el.innerHTML = state.rejoinLoading ? 'Calcolo del rientro…'
+    : rejoinOn ? 'Simulazione del rientro attiva: tocca dove si trova la persona.'
+    : err ? `<span class="err">${err.split('\n')[0]}</span>`
+    : state.loading ? 'Calcolo del percorso…'
+    : state.points.length < 2 ? `Tocca la mappa per aggiungere i punti del giro: ${state.points.length ? 'ne manca uno' : 'ne servono almeno due'}.`
+    : [nuovo && line('Nuovo', nuovo), produzione && line('Produzione', produzione)].filter(Boolean).join('<br>');
+  // il testo cambia di altezza: il pannello chiuso deve seguirlo
+  if (document.body.dataset.sheet === 'low') sheetHeight(SHEET.low());
+}
+
+// spazio occupato dal pannello in basso, per inquadrare sopra di lui
+const fitPadding = p => [p, p / 2, (mobile.matches ? $('panel').offsetHeight : 0) + p / 2, p / 2];
+function fitRoute() {
+  const ext = routeSource.getExtent();
+  if (ol.extent.isEmpty(ext)) return;
+  map.getView().fit(ext, {padding: fitPadding(60), maxZoom: 16, duration: 300});
+}
+$('fit').addEventListener('click', fitRoute);
+
 // --- mappa ---------------------------------------------------------------
 
 const state = {
@@ -147,7 +233,7 @@ const map = new ol.Map({
 window.__wm = {map, state};
 olms.apply(map, 'https://tiles.maphub.it/style.json').then(() => map.addLayer(routeLayer)).catch(showError);
 
-function showError(e) { $('err').textContent = e ? String(e?.message ?? e) : ''; }
+function showError(e) { $('err').textContent = e ? String(e?.message ?? e) : ''; drawMini(); }
 const engineMode = () => document.querySelector('input[name=engine]:checked').value;
 
 function drawArea(area) {
@@ -365,7 +451,8 @@ function drawSegments() {
     state.highlight = {from: x.from, to: x.to};
     draw();
     const c = r.geometry.coordinates.slice(x.from, x.to + 1).map(p => ol.proj.fromLonLat([p[0], p[1]]));
-    map.getView().fit(new ol.geom.LineString(c), {padding: [80, 80, 80, 80], maxZoom: 16, duration: 300});
+    if (mobile.matches && document.body.dataset.sheet === 'high') setSheet('mid');
+    map.getView().fit(new ol.geom.LineString(c), {padding: fitPadding(80), maxZoom: 16, duration: 300});
   }));
 }
 
@@ -379,6 +466,7 @@ function drawResults() {
   }
   if (produzione) parts.push(card(`Produzione (${PROD_HELP[$('prodProfile').value]})`, '#1f6feb', produzione));
   $('results').innerHTML = parts.length ? parts.join('') : '<p class="help">Metti almeno due punti sulla mappa.</p>';
+  drawMini();
   const warn = [];
   if (nuovo) warn.push(nuovo.warning);
   if (nuovo?.fallbackLegs?.length) {
@@ -452,9 +540,13 @@ const DIFF_TEXT = {T: 'T (turistico)', E: 'E (escursionistico)', EE: 'EE (escurs
 const ORIGIN_TEXT = {cai: 'dalla scala CAI della relazione', sac: 'da sac_scale della via', none: 'nessun dato',
   glacier: 'dentro un ghiacciaio', via_ferrata: 'via ferrata'};
 
+const featureAt = (pixel, tol) =>
+  map.forEachFeatureAtPixel(pixel, f => (f.get('seg') || f.get('info') ? f : undefined), {hitTolerance: tol});
+
 map.on('pointermove', e => {
+  if (touch.matches) return;          // sul telefono i dettagli arrivano al tocco
   const tip = $('tooltip');
-  const f = map.forEachFeatureAtPixel(e.pixel, f => (f.get('seg') || f.get('info') ? f : undefined), {hitTolerance: 4});
+  const f = featureAt(e.pixel, 4);
   map.getTargetElement().style.cursor = f ? 'pointer' : '';
   if (!f) {
     const poi = rejoinOn ? null : findPoi(e.pixel);
@@ -465,9 +557,15 @@ map.on('pointermove', e => {
     tip.style.left = `${e.pixel[0] + 14}px`; tip.style.top = `${e.pixel[1] + 14}px`;
     return;
   }
+  tip.innerHTML = tipHtml(f);
+  tip.style.display = 'block';
+  tip.style.left = `${e.pixel[0] + 14}px`; tip.style.top = `${e.pixel[1] + 14}px`;
+});
+
+function tipHtml(f) {
   const seg = f.get('seg');
   const road = seg?.roadClass && seg.roadClass !== 'path';
-  tip.innerHTML = seg
+  return seg
     ? `<b>Motore nuovo</b>Difficoltà: ${DIFF_TEXT[seg.difficulty] ?? (road ? 'nessuna (strada o forestale)' : 'sconosciuta')}` +
       `${seg.difficulty ? ` (${ORIGIN_TEXT[seg.origin] ?? seg.origin})` : ''}${seg.longChain ? ', tratto sconosciuto lungo' : ''}<br>` +
       (seg.sac ? `sac_scale originale: ${seg.sac}<br>` : '') +
@@ -477,9 +575,24 @@ map.on('pointermove', e => {
       `Pendenza media: ${seg.slope ?? 0}%${seg.ford ? '<br>Guado' : ''}${seg.dismount ? '<br>Bici a mano' : ''}` +
       (seg.profile && seg.profile !== state.results.nuovo?.profile ? `<br><b>Calcolato con il profilo ${seg.profile}</b>` : '')
     : `<b>${f.get('info').title}</b>`;
+}
+
+// Sul telefono un tocco su un tratto apre i suoi dettagli invece di aggiungere un
+// punto: chi vuole un punto proprio li' lo aggiunge dal pulsante.
+function pinTip(f, coord) {
+  const tip = $('tooltip');
+  tip.innerHTML = tipHtml(f) + '<div class="actions"><button data-a="add">Aggiungi un punto qui</button>' +
+    '<button data-a="close">Chiudi</button></div>';
+  tip.classList.add('pinned');
   tip.style.display = 'block';
-  tip.style.left = `${e.pixel[0] + 14}px`; tip.style.top = `${e.pixel[1] + 14}px`;
-});
+  tip.querySelector('[data-a=add]').addEventListener('click', () => { closeTip(); addPoint(coord, null); });
+  tip.querySelector('[data-a=close]').addEventListener('click', closeTip);
+}
+function closeTip() {
+  const tip = $('tooltip');
+  tip.classList.remove('pinned');
+  tip.style.display = 'none';
+}
 
 // --- punti di interesse delle tile ------------------------------------------
 
@@ -514,6 +627,8 @@ async function recompute() {
   $('rejoin-result').textContent = '';
   syncUrl();
   if (state.points.length < 2) return draw();
+  state.loading = true;
+  drawMini();
   const mode = engineMode();
   const jobs = [];
   if (mode !== 'produzione')
@@ -521,6 +636,7 @@ async function recompute() {
   if (mode !== 'nuovo') jobs.push(routeProd().then(r => { state.results.produzione = r; }));
   const out = await Promise.allSettled(jobs);
   const errs = out.filter(o => o.status === 'rejected').map(o => o.reason?.message ?? o.reason);
+  state.loading = false;
   if (errs.length) showError(errs.join('\n'));
   draw();
 }
@@ -532,20 +648,25 @@ $('rejoinMode').addEventListener('click', () => {
   rejoinOn = !rejoinOn;
   $('rejoinMode').classList.toggle('on', rejoinOn);
   $('rejoinMode').textContent = rejoinOn ? 'Simulazione attiva: clicca dove si trova la persona' : 'Attiva la simulazione';
+  if (rejoinOn && mobile.matches) setSheet('low');
+  drawMini();
 });
 
 async function rejoin(position) {
   const base = state.results.nuovo;
   if (!base) return showError('Per simulare il rientro calcola prima un tracciato con il motore nuovo.');
   const track = base.geometry.coordinates.map(c => [c[0], c[1]]);
+  state.rejoinLoading = true;
+  $('rejoin-result').textContent = 'Calcolo del rientro…';
+  drawMini();
   const r = await fetch(`/v1/${SHARD}/rejoin`, {method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({profile: $('newProfile').value, position, track, progressM: Number($('progress').value),
                           direction: $('direction').value, matchTrack: true})});
-  const j = await r.json();
+  const j = await r.json().finally(() => { state.rejoinLoading = false; drawMini(); });
   routeSource.addFeature(new ol.Feature({geometry: new ol.geom.Point(ol.proj.fromLonLat(position)),
     style: new ol.style.Style({image: new ol.style.Circle({radius: 7, fill: new ol.style.Fill({color: '#00c853'}),
       stroke: new ol.style.Stroke({color: '#fff', width: 2})})})}));
-  if (j.stato !== 'rientro') { $('rejoin-result').textContent = explain(j); return; }
+  if (j.stato !== 'rientro') { $('rejoin-result').textContent = explain(j); showRejoin(); return; }
   // il primo tratto, se e' fuori sentiero, va dalla persona alla via: punteggiato
   const drawFromPerson = (route, color, title) => {
     const c = route.geometry.coordinates;
@@ -559,18 +680,34 @@ async function rejoin(position) {
     `a ${(j.joinAtM / 1000).toFixed(2)} km dalla partenza` +
     (j.offPathM ? `; il primo tratto, ${Math.round(j.offPathM)} m, è fuori sentiero (in linea d'aria)` : '') +
     (j.backToReached ? `. In azzurro il ritorno al punto già raggiunto: ${(j.backToReached.distanceM / 1000).toFixed(2)} km, molto più corto.` : '.');
+  showRejoin();
+}
+// sul telefono l'esito sta nella scheda del rientro: la si apre a meta' schermo
+function showRejoin() {
+  if (!mobile.matches) return;
+  setTab('rientro');
+  if (document.body.dataset.sheet === 'low') setSheet('mid');
 }
 
 // --- eventi ----------------------------------------------------------------
 
-map.on('singleclick', e => {
-  const p = ol.proj.toLonLat(e.coordinate);
-  if (rejoinOn) return rejoin(p).catch(showError);
-  // un clic su un punto di interesse delle tile prende le sue coordinate esatte e il suo nome
-  const poi = findPoi(e.pixel);
+function addPoint(p, poi) {
   state.points.push(poi ? poi.coord : p);
   state.poi[state.points.length - 1] = poi;
   recompute().catch(showError);
+}
+map.on('singleclick', e => {
+  const p = ol.proj.toLonLat(e.coordinate);
+  if (rejoinOn) return rejoin(p).catch(showError);
+  const pinned = $('tooltip').classList.contains('pinned');
+  closeTip();
+  if (pinned) return;                 // il primo tocco chiude i dettagli aperti
+  if (touch.matches) {
+    const f = featureAt(e.pixel, 10);
+    if (f) return pinTip(f, p);
+  }
+  // un clic su un punto di interesse delle tile prende le sue coordinate esatte e il suo nome
+  addPoint(p, findPoi(e.pixel));
 });
 document.querySelectorAll('input[name=engine]').forEach(r => r.addEventListener('change', () => {
   $('engine-help').textContent = ENGINE_HELP[engineMode()];
@@ -603,4 +740,7 @@ async function loadMeta() {
 }
 
 drawLegends();
-loadMeta().then(recompute).catch(showError);
+setTab(state.points.length >= 2 ? 'percorso' : 'punti');
+setSheet('low');
+loadMeta().then(recompute).then(() => { if (mobile.matches && state.points.length >= 2) fitRoute(); })
+  .catch(showError);

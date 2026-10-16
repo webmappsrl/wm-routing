@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Routing a confronto</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@7.3.0/ol.css">
   <script src="https://cdn.jsdelivr.net/npm/ol@7.3.0/dist/ol.js"></script>
@@ -74,27 +74,87 @@
                padding: 6px 8px; border-radius: 6px; font-size: 12px; max-width: 260px; display: none; z-index: 5; }
     #tooltip b { display: block; margin-bottom: 2px; }
     details summary { cursor: pointer; color: var(--muted); font-size: 12.5px; margin-top: 4px; }
+    #fit { position: absolute; top: 74px; left: .5em; z-index: 4; width: 1.375em; height: 1.375em; padding: 0;
+           font-size: 1.14em; line-height: 1; background: rgba(255,255,255,.85); border: 0; border-radius: 4px; }
+    #sheet-top { display: none; }
+    #tooltip .actions { display: flex; gap: 8px; margin-top: 8px; }
+    #tooltip .actions button { flex: 1; color: var(--fg); }
+
+    /* Telefono: mappa a tutto schermo, il pannello sale dal basso (tre altezze,
+       --sheet-h la scrive preview.js) e il contenuto e' diviso in schede. */
     @media (max-width: 760px) {
-      :root { --panel: 100%; }
-      #map { inset: 0 0 50% 0; }
-      #panel { top: 50%; width: 100%; border-left: 0; border-top: 1px solid var(--line); }
+      :root { --sheet-h: 120px; }
+      html, body { overflow: hidden; }
+      #map { inset: 0; }
+      #panel { top: auto; left: 0; right: 0; bottom: 0; width: 100%; height: var(--sheet-h); border-left: 0;
+               border-radius: 14px 14px 0 0; box-shadow: 0 -4px 18px rgba(0,0,0,.18); display: flex;
+               flex-direction: column; overflow: hidden; transition: height .2s ease; z-index: 6;
+               padding-bottom: env(safe-area-inset-bottom); }
+      #panel.dragging { transition: none; }
+      #sheet-top { display: block; flex: none; border-bottom: 1px solid var(--line); }
+      #sheet-handle { padding: 8px 0 4px; display: grid; place-items: center; cursor: grab; touch-action: none; }
+      #sheet-handle span { width: 40px; height: 5px; border-radius: 3px; background: #c5ccd3; }
+      #mini { padding: 0 16px 6px; font-size: 13px; line-height: 1.35; min-height: 18px; }
+      #mini .err { color: var(--err-fg); }
+      #mini b { font-variant-numeric: tabular-nums; }
+      #tabs { display: flex; gap: 4px; padding: 0 8px 8px; }
+      #tabs button { flex: 1 1 0; min-width: 0; min-height: 36px; font-size: 13px; border-radius: 18px; padding: 4px 2px;
+                     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      #tabs button[aria-selected=true] { background: var(--fg); border-color: var(--fg); color: #fff; }
+      #panel-body { flex: 1; overflow: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+      #panel-body section { display: none; border-bottom: 0; }
+      body[data-tab=percorso] #panel-body section[data-tab=percorso],
+      body[data-tab=punti] #panel-body section[data-tab=punti],
+      body[data-tab=opzioni] #panel-body section[data-tab=opzioni],
+      body[data-tab=legenda] #panel-body section[data-tab=legenda],
+      body[data-tab=rientro] #panel-body section[data-tab=rientro] { display: block; }
+      section h2 .n { display: none; }
+      header { padding: 8px 16px 0; border-bottom: 0; }
+      header h1, header p { display: none; }
+      #stamp { margin-top: 0; }
+      .box { margin: 8px 16px; }
+      button, select, input[type=number] { min-height: 40px; font-size: 16px; }
+      #points li { font-size: 14px; padding: 4px 0; }
+      #points li button { min-width: 40px; }
+      #segments { font-size: 12.5px; }
+      #segments td, #segments th { padding: 7px 6px; }
+      #segments-wrap { max-height: none; }
+      #fit { top: 96px; width: 36px; height: 36px; min-height: 0; font-size: 20px; }
+      #map .ol-attribution { bottom: calc(var(--sheet-h) + 8px); }
+      @media (max-width: 360px) { #tabs button { font-size: 12px; } }
+      #tooltip.pinned { position: fixed; left: 10px !important; right: 10px; top: 10px !important; max-width: none;
+                        pointer-events: auto; font-size: 13.5px; padding: 10px 12px; z-index: 7; }
     }
   </style>
 </head>
 <body>
   <div id="map"></div>
   <div id="tooltip"></div>
+  <button id="fit" title="Inquadra il percorso" aria-label="Inquadra il percorso">⤢</button>
   <div id="panel">
+    <!-- solo su telefono: il pannello sale dal basso, con riepilogo e schede -->
+    <div id="sheet-top">
+      <div id="sheet-handle" role="button" aria-label="Apri o chiudi il pannello"><span></span></div>
+      <div id="mini"></div>
+      <nav id="tabs">
+        <button data-tab="percorso">Percorso</button><button data-tab="punti">Punti</button>
+        <button data-tab="opzioni">Opzioni</button><button data-tab="legenda">Legenda</button>
+        <button data-tab="rientro">Rientro</button>
+      </nav>
+    </div>
+    <div id="panel-body">
     <header>
       <h1>Routing a confronto</h1>
       <p>Il motore nuovo (wm-routing) e il GraphHopper di produzione sugli stessi punti, con lo sfondo delle
          tile di wm-tiles.</p>
       <div id="stamp"></div>
     </header>
+    <div id="warning" class="box"></div>
+    <div id="err" class="box"></div>
 
-    <section>
+    <section data-tab="punti">
       <h2><span class="n">1</span>Punti</h2>
-      <p class="help">Clicca sulla mappa per aggiungere i punti del giro, in ordine: servono almeno due punti.
+      <p class="help">Clicca (o tocca) la mappa per aggiungere i punti del giro, in ordine: servono almeno due punti.
         Clicca su un'icona (cima, rifugio, sorgente, valico…) per usarla come tappa con le sue coordinate esatte e il
         suo nome; a zoom basso alcune icone sono nascoste perché si sovrappongono.
         Un punto lontano dai sentieri viene agganciato al più vicino e segnalato. Il riquadro rosso è l'area
@@ -103,7 +163,7 @@
       <div class="row"><button id="undo">Togli l'ultimo</button><button id="clear">Cancella tutti</button></div>
     </section>
 
-    <section>
+    <section data-tab="opzioni">
       <h2><span class="n">2</span>Motore</h2>
       <div class="radios">
         <label><input type="radio" name="engine" value="nuovo"><span>Nuovo<small>wm-routing: profili CAI,
@@ -116,7 +176,7 @@
       <p class="help" id="engine-help"></p>
     </section>
 
-    <section>
+    <section data-tab="opzioni">
       <h2><span class="n">3</span>Profilo</h2>
       <div class="row">
         <label>Motore nuovo <select id="newProfile"></select></label>
@@ -139,7 +199,7 @@
       </details>
     </section>
 
-    <section>
+    <section data-tab="legenda">
       <h2><span class="n">4</span>Legenda</h2>
       <p class="help">Linee sulla mappa:</p>
       <ul class="legend" id="legend-lines"></ul>
@@ -151,14 +211,12 @@
         <option value="origine">origine del dato di difficoltà</option>
       </select></label>
       <ul class="legend" id="legend-colors"></ul>
-      <p class="help">Passa con il mouse su un tratto per vederne i dettagli.</p>
+      <p class="help">Passa con il mouse su un tratto per vederne i dettagli (sul telefono: toccalo).</p>
     </section>
 
-    <section>
+    <section data-tab="percorso">
       <h2><span class="n">5</span>Risultati</h2>
       <div id="results"><p class="help">Metti almeno due punti sulla mappa.</p></div>
-      <div id="warning" class="box"></div>
-      <div id="err" class="box"></div>
       <p class="help" style="margin:10px 0 2px"><b>Tratti del motore nuovo</b>: una riga per tratto con le
         stesse caratteristiche. Clicca una riga per vederlo sulla mappa. In viola i tratti calcolati con un
         profilo più permissivo di quello scelto.</p>
@@ -168,10 +226,10 @@
       <div id="elevation-axis" class="help"></div>
     </section>
 
-    <section>
+    <section data-tab="rientro">
       <h2><span class="n">6</span>Rientro sulla traccia</h2>
       <p class="help">Simula chi segue il tracciato del motore nuovo e se ne allontana: attiva la simulazione,
-        poi clicca dove si trova la persona. Il rientro scatta fra 50 m e 1 km dalla traccia (2 km in MTB).</p>
+        poi clicca (o tocca) dove si trova la persona. Il rientro scatta fra 50 m e 1 km dalla traccia (2 km in MTB).</p>
       <button id="rejoinMode">Attiva la simulazione</button>
       <div class="row">
         <label>Verso <select id="direction">
@@ -185,6 +243,7 @@
         ritorno lo stesso posto corrisponde a due punti diversi della traccia.</p>
       <div id="rejoin-result" class="help"></div>
     </section>
+    </div>
   </div>
   <script src="preview.js"></script>
 </body>
