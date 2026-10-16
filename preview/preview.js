@@ -362,6 +362,7 @@ function draw() {
   drawSegments();
   drawProfile();
   updateAlongRoute();
+  updateCaiRoutes();
 }
 
 function drawPoints() {
@@ -376,7 +377,8 @@ function drawPoints() {
     `<li><span class="num">${i + 1}</span><span class="pt">${state.poi[i] ? poiText(state.poi[i]) : `${p[0].toFixed(5)}, ${p[1].toFixed(5)}`}` +
     eta(i) + '</span>' +
     (off.has(i) ? ` <span class="off">a ${off.get(i)} m dal sentiero</span>` : '') +
-    `<button data-i="${i}" title="Togli questo punto">×</button></li>`).join('');
+    `<button data-i="${i}" title="Togli questo punto">×</button>` +
+    (state.poi[i]?.wiki ? wikiHtml(state.poi[i].wiki) : '') + '</li>').join('');
   $('points').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
     state.points.splice(Number(b.dataset.i), 1);
     state.poi.splice(Number(b.dataset.i), 1);
@@ -772,7 +774,127 @@ function findPoi(pixel) {
 }
 const poiText = p => `${p.name}${p.kind ? ' · ' + p.kind : ''}${p.ele ? ' · ' + p.ele + ' m' : ''}`;
 
-// --- acqua e rifugi lungo il giro --------------------------------------------
+// --- i sentieri CAI del giro, da osmfeatures ---------------------------------
+
+// osmfeatures.maphub.it e' il mirror OSM di Webmapp arricchito (stato del
+// catasto CAI, tempi, rilievi, wiki), agganciato per id OSM: i tratti portano
+// gli id delle relazioni (relIds) e da li' si prende la scheda del sentiero.
+// CORS aperto: si chiama dal browser, con una cache per relazione.
+const OSMF = 'https://osmfeatures.maphub.it/api/v2/features';
+const caiCache = new Map();
+const fetchCai = id => {
+  if (!caiCache.has(id))
+    caiCache.set(id, fetch(`${OSMF}/hiking-routes/R${id}`).then(r => (r.ok ? r.json() : null)).catch(() => null));
+  return caiCache.get(id);
+};
+// riassunto e foto da Wikipedia (REST, CORS aperto), dal tag "it:Titolo"
+const wikiCache = new Map();
+// osmfeatures serializza il tag come URL ("https://en.wikipedia.org/wiki/it:Monte Serra"):
+// si riporta tutto alla forma "lingua:Titolo" prima di chiamare la REST di Wikipedia
+function wikiTag(raw) {
+  if (!raw) return null;
+  let t = String(raw);
+  const m = t.match(/wikipedia\.org\/wiki\/(.+)$/);
+  if (m) t = decodeURIComponent(m[1]);
+  return t.replace(/_/g, ' ');
+}
+const fetchWiki = raw => {
+  const tag = wikiTag(raw);
+  if (!tag) return Promise.resolve(null);
+  if (!wikiCache.has(tag)) {
+    const [lang, title] = /^[a-z]{2,3}:/.test(tag) ? tag.split(/:(.+)/) : ['it', tag];
+    wikiCache.set(tag, fetch(`https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title.replace(/ /g, '_'))}`)
+      .then(r => (r.ok ? r.json() : null)).catch(() => null));
+  }
+  return wikiCache.get(tag);
+};
+const esc = t => String(t ?? '').replace(/[<>&"]/g, ch => ({'<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;'}[ch]));
+const CAI_STATO = {0: ['sconosciuto', '#9e9e9e'], 1: ['1/4', '#e53935'], 2: ['2/4', '#fb8c00'],
+                   3: ['3/4', '#fdd835'], 4: ['4/4 verificato', '#43a047']};
+const wikiHtml = w => (w && (w.extract || w.thumbnail)
+  ? `<div class="wiki">${w.thumbnail ? `<img src="${esc(w.thumbnail.source)}" alt="">` : ''}
+     <span>${esc((w.extract ?? '').slice(0, 220))}${(w.extract ?? '').length > 220 ? '…' : ''}
+     <a href="${esc(w.content_urls?.desktop?.page ?? '#')}" target="_blank" rel="noopener">Wikipedia</a></span></div>` : '');
+
+let caiToken = 0;
+function updateCaiRoutes() {
+  const r = state.results.nuovo;
+  const el = $('cai-routes');
+  const token = ++caiToken;
+  state.caiRoutes = [];
+  if (!r?.segments?.length) { el.innerHTML = ''; return; }
+  // metri percorsi su ogni relazione: le piu' battute per prime
+  const cum = cumulative(r.geometry.coordinates);
+  const byRel = new Map();
+  for (const seg of r.segments)
+    for (const id of (seg.relIds ?? '').split(';').filter(Boolean))
+      byRel.set(id, (byRel.get(id) ?? 0) + (cum[seg.to] - cum[seg.from]));
+  const top = [...byRel].filter(([, m]) => m >= 200).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  if (!top.length) { el.innerHTML = ''; return; }
+  Promise.all(top.map(([id, m]) => fetchCai(id).then(j => j && {id, m, p: j.properties ?? {}}))).then(list => {
+    if (token !== caiToken) return;                 // nel frattempo e' cambiato il giro
+    state.caiRoutes = list.filter(Boolean);
+    if (!state.caiRoutes.length) { el.innerHTML = ''; return; }
+    el.innerHTML = `<div class="card"><h3>Sentieri CAI del giro</h3>
+      <p class="help">Dal catasto dei sentieri (osmfeatures): tocca un segnavia per la scheda.</p><ul>` +
+      state.caiRoutes.map((x, i) => {
+        const st = CAI_STATO[x.p.osm2cai_status] ?? CAI_STATO[0];
+        return `<li><button class="chip" data-i="${i}">${esc(x.p.ref ?? '—')}</button>` +
+          `${esc([x.p.from, x.p.to].filter(Boolean).join(' → ') || x.p.name || '')}` +
+          ` <small>· ${(x.m / 1000).toFixed(1)} km nel giro · <span class="stato" style="background:${st[1]}"></span>${st[0]}</small>` +
+          `<div class="cai-detail" data-d="${i}" hidden></div></li>`;
+      }).join('') + '</ul></div>';
+    el.querySelectorAll('.chip').forEach(b => b.addEventListener('click', () => openCaiDetail(Number(b.dataset.i))));
+  });
+}
+const caiMin = m => (m ? `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')} min` : null);
+function openCaiDetail(i) {
+  const x = state.caiRoutes[i];
+  const d = $('cai-routes').querySelector(`[data-d="${i}"]`);
+  if (!d || !x) return;
+  if (!d.hidden) { d.hidden = true; return; }
+  const p = x.p;
+  const rows = [
+    ['Nome', p.name], ['Rete', p.rwn_name],
+    ['Tempi CAI', [caiMin(p.duration_forward) && `${caiMin(p.duration_forward)} andata`,
+                   caiMin(p.duration_backward) && `${caiMin(p.duration_backward)} ritorno`].filter(Boolean).join(' · ') || null],
+    ['Ultimo rilievo', p.survey_date], ['Catasto REI', p.ref_REI], ['Gestore', p.operator],
+  ].filter(([, v]) => v);
+  d.innerHTML = `<dl>${rows.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` +
+    `<div class="alt">` +
+    (p.website ? `<a href="${esc(p.website)}" target="_blank" rel="noopener">sito della sezione</a> · ` : '') +
+    `<a href="${esc(p.osm_url ?? `https://www.openstreetmap.org/relation/${x.id}`)}" target="_blank" rel="noopener">OSM</a>` +
+    (p.wikimedia_commons ? ` · <a href="https://commons.wikimedia.org/wiki/${esc(p.wikimedia_commons)}" target="_blank" rel="noopener">foto</a>` : '') +
+    `</div><div class="wiki-slot"></div>`;
+  d.hidden = false;
+  fetchWiki(p.wikipedia).then(w => { const slot = d.querySelector('.wiki-slot'); if (slot) slot.innerHTML = wikiHtml(w); });
+}
+
+// Una tappa presa da un punto della mappa si arricchisce da osmfeatures (places
+// nearby + dettaglio): se il posto ha Wikipedia, foto e due righe sotto la tappa.
+const placeCache = new Map();
+function enrichPoi(poi) {
+  if (!poi || poi.wikiDone) return;
+  poi.wikiDone = true;
+  const key = poi.coord.map(v => v.toFixed(5)).join();
+  if (!placeCache.has(key)) {
+    placeCache.set(key, fetch(`${OSMF}/places/${poi.coord[0]}/${poi.coord[1]}/80`)
+      .then(r => (r.ok ? r.json() : []))
+      .then(list => {
+        const hit = list.find(x => x.name && poi.name && x.name.toLowerCase() === poi.name.toLowerCase()) ?? list[0];
+        return hit ? fetch(`${OSMF}/places/${hit.osmfeatures_id}`).then(r => (r.ok ? r.json() : null)) : null;
+      })
+      .then(j => {
+        const en = j?.properties?.enrichments?.data ?? j?.properties?.enrichments ?? null;
+        const ab = en?.abstract?.it ?? en?.abstract ?? null;
+        if (ab) return {extract: ab, thumbnail: en.images?.[0]?.source_url ? {source: en.images[0].source_url} : null,
+                        content_urls: {desktop: {page: j.properties.osm_url}}};
+        return fetchWiki(j?.properties?.wikipedia);
+      })
+      .catch(() => null));
+  }
+  placeCache.get(key).then(w => { if (w) { poi.wiki = w; drawPoints(); } });
+}
 
 // Come nelle guide: sorgenti, fontane e rifugi entro 150 m dal tracciato, presi
 // dai punti delle tile gia' caricate (quindi alla scala attuale: e' un elenco
@@ -1002,6 +1124,7 @@ function addPointAt(p, poi, leg) {
   state.points.splice(at, 0, poi ? poi.coord : p);
   state.poi.splice(at, 0, poi ?? null);
   state.lastInserted = state.points[at];
+  enrichPoi(poi);
   if (poi) flash(`Punto ${at + 1}: ${poiText(poi)}`);
   recompute().catch(showError);
 }
@@ -1009,6 +1132,7 @@ function addPoint(p, poi) {
   state.points.push(poi ? poi.coord : p);
   state.poi[state.points.length - 1] = poi;
   state.lastInserted = state.points.at(-1);
+  enrichPoi(poi);
   // sul telefono il nome della tappa sta in una scheda chiusa: lo si conferma nel riepilogo
   if (poi) flash(`Punto ${state.points.length}: ${poiText(poi)}`);
   recompute().catch(showError);

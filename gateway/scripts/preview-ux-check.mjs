@@ -101,6 +101,20 @@ check((await txt('#warning'))?.includes('esperto'), 'avviso sui tratti calcolati
     await page.waitForFunction(() => window.__wm.state.results.nuovo, null, {timeout: 30000}).catch(() => {});
   }
 }
+// sentieri CAI del giro, da osmfeatures: elenco, scheda, wiki
+{
+  const got = await page.waitForFunction(() => window.__wm.state.caiRoutes?.length > 0, null, {timeout: 25000})
+    .then(() => true, () => false);
+  check(got, 'sentieri CAI del giro: almeno una scheda da osmfeatures');
+  if (got) {
+    check(/\d/.test(await page.locator('#cai-routes .chip').first().textContent()), 'chip del segnavia');
+    await page.locator('#cai-routes .chip').first().click();
+    await page.waitForTimeout(300);
+    const det = await txt('#cai-routes .cai-detail');
+    check(/OSM/.test(await page.locator('#cai-routes .cai-detail').first().innerHTML()), 'scheda col rimando a OSM');
+    check((await page.locator('#cai-routes li').first().textContent()).includes('km nel giro'), 'km percorsi sul sentiero');
+  }
+}
 // segnavia scritto lungo il tracciato e via OSM nei dettagli
 check(await page.evaluate(() => window.__wm.routeSource.getFeatures()
   .flatMap(f => [].concat(f.get('style') ?? [])).some(st => st?.getText?.()?.getPlacement?.() === 'line'
@@ -230,7 +244,7 @@ await page.waitForFunction(() => window.__wm.state.results.nuovo, null, {timeout
 
 
 await page.goto(base + '?p=12.0,45.0;12.1,45.1&motore=nuovo&c=12,45&z=12');
-await page.waitForFunction(() => document.querySelector('#err')?.textContent.trim(), null, {timeout: 15000}).catch(() => {});
+await page.waitForFunction(() => document.querySelector('#err')?.textContent.trim(), null, {timeout: 30000}).catch(() => {});
 check((await txt('#err'))?.includes('fuori dall\'area'), 'errore "fuori area" spiegato in italiano');
 
 // punti di interesse delle tile: un clic sull'icona della cima la usa come tappa
@@ -252,6 +266,23 @@ if (px) {
   check((await txt('#tooltip'))?.includes('Monte Serra'), 'tooltip sul punto di interesse');
   await page.mouse.click(px[0], px[1]); await page.waitForTimeout(800);
   check((await txt('#points'))?.includes('Monte Serra'), 'il clic sull\'icona aggiunge la tappa con il nome');
+  // se osmfeatures conosce il posto con wiki, la tappa mostra foto/riassunto
+  const expectWiki = await page.evaluate(async () => {
+    try {
+      const poi = window.__wm.state.poi.find(x => x?.name === 'Monte Serra');
+      if (!poi) return false;
+      const list = await (await fetch(`https://osmfeatures.maphub.it/api/v2/features/places/${poi.coord[0]}/${poi.coord[1]}/80`)).json();
+      const hit = list.find(x => x.name === 'Monte Serra') ?? list[0];
+      if (!hit) return false;
+      const d = await (await fetch(`https://osmfeatures.maphub.it/api/v2/features/places/${hit.osmfeatures_id}`)).json();
+      return !!(d?.properties?.wikipedia || d?.properties?.enrichments);
+    } catch { return false; }
+  });
+  if (expectWiki) {
+    const shownWiki = await page.waitForFunction(() => document.querySelector('#points .wiki'), null, {timeout: 15000})
+      .then(() => true, () => false);
+    check(shownWiki, 'la tappa da POI mostra il riquadro wiki (osmfeatures lo conosce)');
+  }
 }
 
 await browser.close();

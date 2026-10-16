@@ -58,6 +58,19 @@
     #points .pt { min-width: 0; }
     .card .steep { cursor: pointer; text-decoration: underline dotted; }
     #along li button { margin-left: 6px; padding: 0 8px; font-size: 12px; }
+    #cai-routes .chip { display: inline-grid; place-items: center; min-width: 30px; padding: 1px 8px;
+                        border-radius: 6px; background: #7a2000; border-color: #7a2000; color: #fff;
+                        font-weight: 700; font-size: 12px; margin-right: 6px; }
+    #cai-routes li { margin: 6px 0; font-size: 13px; list-style: none; }
+    #cai-routes ul { margin: 4px 0 0; padding: 0; }
+    #cai-routes .stato { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin: 0 4px 0 2px; }
+    .cai-detail { border-left: 3px solid var(--line); margin: 6px 0 4px 6px; padding: 2px 0 2px 10px; }
+    .cai-detail dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 0; font-size: 12.5px; }
+    .cai-detail dt { color: var(--muted); }
+    .cai-detail dd { margin: 0; }
+    .wiki { display: flex; gap: 8px; margin-top: 6px; font-size: 12.5px; }
+    .wiki img { width: 72px; height: 72px; object-fit: cover; border-radius: 6px; flex: none; }
+    #points .wiki { margin: 2px 0 6px 28px; }
     .card dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 0; font-size: 13px; }
     .card dt { color: var(--muted); }
     .card dd { margin: 0; font-variant-numeric: tabular-nums; }
@@ -230,6 +243,7 @@
     <section data-tab="percorso">
       <h2><span class="n">5</span>Risultati</h2>
       <div id="results"><p class="help">Metti almeno due punti sulla mappa.</p></div>
+      <div id="cai-routes"></div>
       <div id="along"></div>
       <div class="row" id="export-row" hidden>
         <button id="gpx" title="La traccia del motore nuovo con le quote e le tappe: si carica su orologi e app GPS">Scarica il GPX</button>

@@ -260,6 +260,24 @@ GraphHopper Maps e BRouter-web. Aggiunte, ciascuna col suo controllo in
   Le fontane si vedono nella preview come pallini di "lungo il giro", quindi
   solo a percorso calcolato; niente modifica allo stile delle tile.
 
+### Integrazione osmfeatures (16 ottobre 2026)
+
+Richiesta dell'utente: lo strato informativo di osmfeatures.maphub.it
+(mirror OSM arricchito, gancio = id OSM) dentro il routing. Analisi API v2 con
+chiamate vere, poi codice in `geobox2/osmfeatures`. Scelte col committente:
+niente comuni attraversati (POST admin-areas/geojson: non cambia nessuna
+decisione di chi pianifica), niente cartelli (poles vuoti nella nostra zona),
+dentro i dati wiki ("invogliano la creazione di un percorso o una tappa").
+Realizzato: `rel_ids` nel pre-passo, `relIds` per tratto dal gateway
+(retrocompatibile a tre livelli di colonne), scheda "Sentieri CAI del giro"
+(stato osm2cai, tempi CAI, rilievo, REI, gestore, sito, OSM, wiki) ordinata
+per metri percorsi sulla relazione, riquadro wiki sotto le tappe da POI
+(enrichments di osmfeatures quando ci sono, altrimenti REST di Wikipedia).
+Trappole trovate: `wikipedia` serializzato come URL ibrido
+("https://en.wikipedia.org/wiki/it:Monte Serra") da normalizzare;
+`pois/{id}` risponde 500 (segnalato, non usato); gli `enrichments` si
+lanciano a mano lato server, copertura a macchie.
+
 ## Decisioni
 
 - **Punteggio del rientro**: tempo di rientro piu' due volte il tempo del

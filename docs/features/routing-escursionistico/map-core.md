@@ -161,6 +161,19 @@ implementazione, in OpenLayers come l'app.
       (scelta del committente, 16 ottobre 2026): farne una tappa e' un'azione
       esplicita ("Fanne una tappa" / "tappa"), che inserisce il punto nella
       tappa giusta col nome del posto
+- [ ] **Integrazione osmfeatures** (osmfeatures.maphub.it, CORS aperto: si
+      chiama dal client, nessun passaggio dal gateway). Il gancio sono gli id
+      OSM: i tratti portano `relIds` (id delle relazioni escursionistiche, da
+      grafo costruito col pre-passo dal commit `0d9a5a7` in poi). Tre usi,
+      tutti nella preview come riferimento:
+      «Sentieri CAI del giro» (`hiking-routes/R{id}`: ref, da→a, stato
+      osm2cai 0–4, tempi CAI, rilievo, REI, gestore, sito, wiki), con cache
+      per relazione e metri percorsi su ognuna; scheda wiki su una tappa da
+      POI (`places/{lon}/{lat}/{80}` → dettaglio → `enrichments` se ci sono,
+      altrimenti riassunto e foto dalla REST di Wikipedia — attenzione: il
+      campo `wikipedia` arriva come URL ibrido, va normalizzato, `wikiTag()`
+      nella preview); il tutto caricato pigramente e silenzioso se il
+      servizio non risponde
 - [ ] **Arrivo col buio** (solo app, non in preview): ora prevista d'arrivo =
       partenza + tempo DIN; se supera il tramonto (calcolabile sul client),
       avvisare prima di partire
