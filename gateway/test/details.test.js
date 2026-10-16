@@ -3,7 +3,7 @@ import {summarizeDetails} from '../src/details.js';
 import {ratingToCai} from '../src/difficulty.js';
 
 const rows = {
-  11: {cai: 'EE', sac: 'alpine_hiking', origin: 'cai', long_chain: 0},
+  11: {cai: 'EE', sac: 'alpine_hiking', origin: 'cai', long_chain: 0, refs: '00;139'},
   12: {cai: null, sac: null, origin: 'none', long_chain: 1},
 };
 const waysDb = {prepare: () => ({get: id => rows[id]})};
@@ -52,4 +52,23 @@ it("la difficolta' sconosciuta conta solo sui sentieri, non su strade e forestal
   const r = summarizeDetails(path, waysDb);
   expect(r.unknownShare).toBeCloseTo(0.5, 2);
   expect(r.segments[0].roadClass).toBe('track');
+});
+
+it('espone i segnavia delle relazioni (refs) e null dove mancano', () => {
+  const path = {
+    points: {coordinates: [[10, 44], [10.001, 44], [10.002, 44]]},
+    details: {osm_way_id: [[0, 1, 11], [1, 2, 12]], hike_rating: [[0, 2, 0]]},
+  };
+  const r = summarizeDetails(path, waysDb);
+  expect(r.segments[0].ref).toBe('00;139');
+  expect(r.segments[1].ref).toBe(null);
+});
+it('tabella laterale vecchia, senza la colonna refs: segmenti con ref null', () => {
+  const oldDb = {prepare: sql => {
+    if (/refs/.test(sql)) throw new Error('no such column: refs');
+    return {get: id => ({cai: 'E', sac: null, origin: 'cai', long_chain: 0})};
+  }};
+  const path = {points: {coordinates: [[10, 44], [10.001, 44]]},
+                details: {osm_way_id: [[0, 1, 11]], hike_rating: [[0, 1, 2]]}};
+  expect(summarizeDetails(path, oldDb).segments[0].ref).toBe(null);
 });

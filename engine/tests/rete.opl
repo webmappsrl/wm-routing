@@ -35,5 +35,7 @@ w15 v1 Thighway=path Nn15,n16
 w16 v1 Thighway=path,sac_scale=mountain_hiking,trail_visibility=bad Nn2,n10
 w17 v1 Thighway=via_ferrata Nn2,n17
 w18 v1 Thighway=path,sac_scale=hiking Nn17,n99
-r1 v1 Ttype=route,route=hiking,network=lwn,cai_scale=EE Mw1@
-r2 v1 Ttype=route,route=hiking,network=lwn,cai_scale=T Mw2@,w3@,w5@
+r1 v1 Ttype=route,route=hiking,network=lwn,cai_scale=EE,ref=139 Mw1@
+r2 v1 Ttype=route,route=hiking,network=lwn,cai_scale=T,ref=00 Mw2@,w3@,w5@
+r3 v1 Ttype=route,route=hiking,network=lwn,ref=00 Mw2@
+r4 v1 Ttype=route,route=hiking,network=lwn Mw2@

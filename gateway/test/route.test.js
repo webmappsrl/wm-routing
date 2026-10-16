@@ -145,3 +145,25 @@ it('raccordi: per ogni punto il tratto fra il punto chiesto e quello agganciato'
     {punto: 1, from: [10.01, 44], to: [10.0101, 44.0002], distanceM: expect.any(Number)}]);
   expect(r.body.connectors[0].distanceM).toBeGreaterThan(20);
 });
+
+it('waypoints: per ogni tappa indice nella geometria, distanza e tempo DIN dalla partenza', async () => {
+  const three = async () => ({ok: true, status: 200, json: {paths: [ghPath({
+    distance: 2000, ascend: 100, descend: 0,
+    points: {type: 'LineString', coordinates: [[10, 44, 500], [10.01, 44, 600], [10.02, 44, 600]]},
+    snapped_waypoints: {type: 'MultiPoint', coordinates: [[10, 44, 500], [10.01, 44, 600], [10.02, 44, 600]]},
+    details: {osm_way_id: [[0, 2, 1]], hike_rating: [[0, 2, 2]]},
+  })]}});
+  const r = await request(make(three)).post('/v1/s/route')
+    .send({...body, points: [[10, 44], [10.01, 44], [10.02, 44]]});
+  expect(r.status).toBe(200);
+  const w = r.body.waypoints;
+  expect(w).toHaveLength(3);
+  expect(w[0]).toMatchObject({punto: 0, index: 0, distanceM: 0, timeH: 0});
+  expect(w[1].index).toBe(1);
+  // meta' strada con tutta la salita: DIN sul prefisso, non metà del totale
+  expect(w[1].distanceM).toBeCloseTo(w[2].distanceM / 2, -1);
+  expect(w[1].timeH).toBeCloseTo(Math.max(w[1].distanceM / 1000 / 4, 100 / 300)
+    + Math.min(w[1].distanceM / 1000 / 4, 100 / 300) / 2, 3);
+  expect(w[2].index).toBe(2);
+  expect(w[2].timeH).toBeCloseTo(r.body.timeH, 3);
+});

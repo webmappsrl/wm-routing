@@ -82,3 +82,10 @@ def test_summary(result):
     assert s["cai_unknown_values"] == {}
     assert s["glaciers"] == 1 and s["military_areas"] == 1
     assert s["long_chains"] == 1
+
+
+def test_refs_from_relations(result):
+    _, rows, _ = result
+    assert rows[1]["refs"] == "139"
+    assert rows[2]["refs"] == "00"      # due relazioni col lo stesso ref: una volta sola
+    assert rows[4]["refs"] is None      # nessuna relazione

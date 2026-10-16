@@ -38,6 +38,38 @@ export function validPoints(points, bbox) {
   return Array.isArray(points) && points.length >= 2 && points.every(p => validPoint(p, bbox));
 }
 
+// Per ogni tappa: indice del punto agganciato nella geometria, distanza e tempo
+// dalla partenza (DIN 33466 sul prefisso a piedi: i cartelli dei sentieri danno
+// il tempo alla tappa, non solo il totale).
+export function waypointStats(coords, snapped, {foot, totalTimeH, totals = {}}) {
+  if (!snapped?.length || coords.length < 2) return [];
+  const dist = [0], up = [0], down = [0];
+  for (let i = 1; i < coords.length; i++) {
+    const [x1, y1, e1 = 0] = coords[i - 1], [x2, y2, e2 = 0] = coords[i];
+    const k = Math.cos(((y1 + y2) / 2) * Math.PI / 180);
+    dist.push(dist[i - 1] + Math.hypot((x2 - x1) * k, y2 - y1) * 111320);
+    up.push(up[i - 1] + Math.max(0, e2 - e1));
+    down.push(down[i - 1] + Math.max(0, e1 - e2));
+  }
+  let from = 0;
+  return snapped.map((p, n) => {
+    let best = from, bestD = Infinity;
+    for (let i = from; i < coords.length; i++) {
+      const k = Math.cos(((coords[i][1] + p[1]) / 2) * Math.PI / 180);
+      const d = Math.hypot((coords[i][0] - p[0]) * k, coords[i][1] - p[1]);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    from = best;
+    // i cumulati della geometria si riportano ai totali del motore (che correggono
+    // per il dislivello): cosi' l'ultima tappa coincide col totale esposto
+    const scale = (cum, total) => (cum.at(-1) ? (total ?? cum.at(-1)) * cum[best] / cum.at(-1) : 0);
+    const d = scale(dist, totals.distanceM), a = scale(up, totals.ascendM), v = scale(down, totals.descendM);
+    const timeH = foot ? hikingTimeHours({distanceM: d, ascendM: a, descendM: v})
+      : totalTimeH * (dist.at(-1) ? dist[best] / dist.at(-1) : 0);
+    return {punto: n, index: best, distanceM: Math.round(d), timeH};
+  });
+}
+
 export function customModelFor(limits) {
   if (!limits) return undefined;
   const cm = {parameters: {}, priority: []};
@@ -116,6 +148,9 @@ export function makeRouteCore({config, engine, waysDb, dataStamp, retry = {}, mo
       geometry: p.points, snapped: p.snapped_waypoints, segments, unknownShare,
       warning: WARNING, snowWarning: maxEle > SNOW_M && SNOW_MONTHS.has(month()),
       offTrailPoints, connectors,
+      waypoints: waypointStats(p.points.coordinates, snappedPts,
+        {foot: mode === 'foot', totalTimeH: p.time / 3600000,
+         totals: {distanceM: p.distance, ascendM: p.ascend ?? 0, descendM: p.descend ?? 0}}),
     };
   };
 }
