@@ -723,13 +723,16 @@ function tipHtml(f) {
 // punto: chi vuole un punto proprio li' lo aggiunge dal pulsante.
 function pinTip(f, coord) {
   const tip = $('tooltip');
-  tip.innerHTML = tipHtml(f) + '<div class="actions"><button data-a="add">Aggiungi un punto qui</button>' +
+  const along = f.get('alongI');
+  const addLabel = along !== undefined ? 'Fanne una tappa' : 'Aggiungi un punto qui';
+  tip.innerHTML = tipHtml(f) + `<div class="actions"><button data-a="add">${addLabel}</button>` +
     '<button data-a="close">Chiudi</button></div>';
   tip.classList.add('pinned');
   tip.style.display = 'block';
   tip.querySelector('[data-a=add]').addEventListener('click', () => {
     const seg = f.get('seg');
     closeTip();
+    if (along !== undefined) return addAlongStop(along);
     addPointAt(coord, null, seg ? legOf(seg.from) : null);
   });
   tip.querySelector('[data-a=close]').addEventListener('click', closeTip);
@@ -812,24 +815,65 @@ function updateAlongRoute() {
         const key = f.get('name') ? `${f.get('name')}|${kind}` : `${kind}|${lonlat.map(v => v.toFixed(4)).join()}`;
         if (!best.has(key) || best.get(key).distM > distM)
           best.set(key, {name: f.get('name') ?? null, kind: KIND_IT[kind] ?? kind, distM: Math.round(distM),
-                         atM: cum[bi], coord: lonlat});
+                         atM: cum[bi], coord: lonlat, geomIndex: bi,
+                         water: !['riparo', 'rifugio', 'bivacco'].includes(KIND_IT[kind] ?? kind),
+                         trackCoord: ol.proj.toLonLat(closest)});
       }
     }
     state.alongRoute = [...best.values()].sort((a, b) => a.atM - b.atM).slice(0, 12);
   }
+  drawAlong();
   const el = $('along');
   if (!state.alongRoute.length) { el.innerHTML = ''; return; }
   el.innerHTML = `<div class="card"><h3>Lungo il giro</h3>
-    <p class="help">Acqua e ripari entro 150 m dal tracciato, fra i punti caricati alla scala attuale.
-    Clicca per vederli; per farne una tappa tocca la loro icona sulla mappa.</p>
+    <p class="help">Acqua e ripari entro 150 m dal tracciato, fra i punti caricati alla scala attuale;
+    sulla mappa sono i pallini col raccordo tratteggiato. Il giro non cambia da solo:
+    "tappa" lo ricalcola per passarci.</p>
     <ul class="legend">` + state.alongRoute.map((x, i) =>
       `<li data-i="${i}" style="cursor:pointer">▸ km ${(x.atM / 1000).toFixed(1)} — ${x.name ? `${x.name} · ` : ''}${x.kind}` +
-      `${x.distM > 25 ? ` <small>(a ${x.distM} m)</small>` : ''}</li>`).join('') + '</ul></div>';
+      `${x.distM > 25 ? ` <small>(a ${x.distM} m)</small>` : ''}` +
+      ` <button data-add="${i}" title="Il giro viene ricalcolato per passarci: si puo' togliere con Togli l'ultimo">tappa</button></li>`).join('') + '</ul></div>';
   el.querySelectorAll('li').forEach(li => li.addEventListener('click', () => {
     const x = state.alongRoute[Number(li.dataset.i)];
     if (mobile.matches && document.body.dataset.sheet === 'high') setSheet('mid');
     map.getView().animate({center: ol.proj.fromLonLat(x.coord), zoom: Math.max(map.getView().getZoom(), 15), duration: 300});
   }));
+  el.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
+    addAlongStop(Number(b.dataset.add));
+  }));
+}
+
+// I punti dell'elenco si disegnano sulla mappa, col raccordo tratteggiato dal
+// tracciato: si vede dove sono e dove si lascia il giro per raggiungerli.
+// Diventano tappe SOLO a richiesta (pulsante): il tracciato non si tocca da solo.
+function drawAlong() {
+  routeSource.getFeatures().filter(f => f.get('along')).forEach(f => routeSource.removeFeature(f));
+  state.alongRoute.forEach((x, i) => {
+    const color = x.water ? '#0288d1' : '#6d4c41';
+    const title = `${x.name ? `${x.name} · ` : ''}${x.kind} · km ${(x.atM / 1000).toFixed(1)}` +
+      (x.distM > 25 ? ` · a ${x.distM} m dal tracciato` : '');
+    const link = new ol.Feature(new ol.geom.LineString([x.trackCoord, x.coord].map(c => ol.proj.fromLonLat(c))));
+    link.set('along', true);
+    link.set('style', new ol.style.Style({zIndex: 14, stroke: new ol.style.Stroke({color, width: 2, lineDash: [2, 6]})}));
+    const dot = new ol.Feature(new ol.geom.Point(ol.proj.fromLonLat(x.coord)));
+    dot.set('along', true);
+    dot.set('alongI', i);
+    dot.set('info', {title});
+    dot.set('style', new ol.style.Style({zIndex: 22,
+      image: new ol.style.Circle({radius: 7, fill: new ol.style.Fill({color}),
+                                  stroke: new ol.style.Stroke({color: '#fff', width: 2})}),
+      text: new ol.style.Text({text: x.name ?? x.kind, offsetY: -14, font: '11px system-ui',
+                               fill: new ol.style.Fill({color: '#1d2125'}),
+                               stroke: new ol.style.Stroke({color: '#fff', width: 3})})}));
+    routeSource.addFeature(link);
+    routeSource.addFeature(dot);
+  });
+}
+function addAlongStop(i) {
+  const x = state.alongRoute[i];
+  if (!x) return;
+  addPointAt(x.coord, {name: x.name ?? x.kind, kind: x.kind, coord: x.coord}, legOf(x.geomIndex));
 }
 
 // --- calcolo ---------------------------------------------------------------
@@ -982,6 +1026,9 @@ map.on('singleclick', e => {
   closeTip();
   if (pinned) return;                 // il primo tocco chiude i dettagli aperti
   if (skipClickUntil > Date.now()) return;      // il trascinamento ha gia' inserito
+  // un pallino di "lungo il giro": informazioni e scelta, il tracciato non si tocca
+  const along = featureAt(e.pixel, 8);
+  if (along?.get('alongI') !== undefined) return pinTip(along, p);
   // un clic su un punto di interesse delle tile prende le sue coordinate esatte e il
   // suo nome, anche vicino al percorso: l'icona e' un bersaglio piu' preciso del tratto
   const poi = findPoi(e.pixel);

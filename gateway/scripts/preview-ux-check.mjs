@@ -59,12 +59,24 @@ check((await txt('#warning'))?.includes('esperto'), 'avviso sui tratti calcolati
 }
 // acqua e rifugi lungo il giro, dai punti delle tile
 {
-  const along = await page.waitForFunction(() => Array.isArray(window.__wm.state.alongRoute), null, {timeout: 10000})
+  const along = await page.waitForFunction(() => window.__wm.state.alongRoute?.length > 0, null, {timeout: 20000})
     .then(() => page.evaluate(() => window.__wm.state.alongRoute), () => null);
-  check(along, 'elenco "lungo il giro" calcolato');
+  check(along?.length > 0, 'elenco "lungo il giro" con almeno una voce (su questo giro ci sono fontane)');
   if (along?.length) {
     check(await page.locator('#along li').count() === along.length, 'elenco "lungo il giro" visibile');
     check(/km/.test(await txt('#along')), 'ogni voce dice a che km si trova');
+    check(await page.evaluate(() => window.__wm.routeSource.getFeatures().filter(f => f.get('along')).length >= 2),
+      'fontane e ripari disegnati sulla mappa, col raccordo');
+    // il pulsante "tappa" inserisce il punto nella tappa giusta e il giro ci passa
+    const n0 = await page.evaluate(() => window.__wm.state.points.length);
+    await page.locator('#along [data-add="0"]').click({timeout: 3000}).catch(() => fails.push('pulsante tappa assente'));
+    const added = await page.waitForFunction(n => window.__wm.state.points.length === n + 1, n0, {timeout: 10000})
+      .then(() => true, () => false);
+    check(added, 'una fontana diventa una tappa del giro');
+    check(await page.evaluate(() => window.__wm.state.poi.some(x => x?.kind)), 'la tappa porta il nome del posto');
+    await page.waitForFunction(() => window.__wm.state.results.nuovo, null, {timeout: 30000}).catch(() => {});
+    await page.locator('#undo').click({timeout: 3000}).catch(() => {});
+    await page.waitForFunction(() => window.__wm.state.results.nuovo, null, {timeout: 30000}).catch(() => {});
   }
 }
 // frecce del verso di percorrenza sul tracciato
