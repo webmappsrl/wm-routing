@@ -41,6 +41,7 @@ await page.goto(base + '?p=10.54415,43.73178;10.55618,43.74150;10.55765,43.74468
   '10.59110,43.75744&motore=nuovo&profilo=escursionista&c=10.556,43.756&z=14');
 await page.waitForFunction(() => window.__wm?.state?.results?.nuovo, null, {timeout: 30000}).catch(() => fails.push('12 punti: nessun tracciato'));
 check((await txt('#warning'))?.includes('esperto'), 'avviso sui tratti calcolati con un altro profilo');
+check((await txt('#segments'))?.includes('esperto'), 'tabella dei tratti: profilo usato');
 // taglio escursionistico: difficolta' complessiva, quote, tratto piu' ripido, tempi alle tappe, segnavia
 check(/^(T|E|EE|EEA)$/.test((await txt('#results .card .badge'))?.trim() ?? ''), 'distintivo della difficolta\' complessiva');
 check(/\d+–\d+ m/.test((await txt('#results .card'))), 'quota minima e massima in scheda');
@@ -63,6 +64,45 @@ else {
 }
 check(await page.locator('#share').isVisible().catch(() => false), 'pulsante per copiare il link');
 
+// desktop: un clic sul tracciato inserisce il punto nel tratto giusto, non in coda;
+// trascinando la linea si fa lo stesso col mouse (lo standard dei planner)
+await page.waitForFunction(() => window.__wm.state.results.nuovo, null, {timeout: 30000}).catch(() => {});
+const midPx = await page.evaluate(() => {
+  const {map, state} = window.__wm;
+  const c = state.results.nuovo.geometry.coordinates;
+  return map.getPixelFromCoordinate(ol.proj.fromLonLat(c[Math.floor(c.length / 2)].slice(0, 2)));
+});
+const nPts = await page.evaluate(() => window.__wm.state.points.length);
+await page.mouse.click(midPx[0], midPx[1]);
+const inserted = await page.waitForFunction(n => window.__wm.state.points.length === n + 1, nPts, {timeout: 10000})
+  .then(() => true, () => false);
+check(inserted, 'clic sul tracciato: aggiunge un punto');
+if (inserted) {
+  const where = await page.evaluate(() => {
+    const {map, state} = window.__wm;
+    return {i: state.points.findIndex(p => p.join() === state.lastInserted?.join()), n: state.points.length};
+  });
+  check(where.i > 0 && where.i < where.n - 1, 'il punto cliccato sul tracciato finisce nel mezzo, non in coda');
+}
+await page.waitForFunction(() => window.__wm.state.results.nuovo, null, {timeout: 30000}).catch(() => {});
+const dragFrom = await page.evaluate(() => {
+  const {map, state} = window.__wm;
+  const c = state.results.nuovo.geometry.coordinates;
+  return map.getPixelFromCoordinate(ol.proj.fromLonLat(c[Math.floor(c.length / 4)].slice(0, 2)));
+});
+const nPts2 = await page.evaluate(() => window.__wm.state.points.length);
+await page.mouse.move(dragFrom[0], dragFrom[1]);
+await page.mouse.down();
+await page.mouse.move(dragFrom[0] + 40, dragFrom[1] - 25, {steps: 8});
+await page.mouse.up();
+const dragged = await page.waitForFunction(n => window.__wm.state.points.length === n + 1, nPts2, {timeout: 10000})
+  .then(() => true, () => false);
+check(dragged, 'trascinando la linea si inserisce un punto');
+const centerBefore = await page.evaluate(() => window.__wm.map.getView().getCenter().join());
+check((await page.evaluate(() => window.__wm.map.getView().getCenter().join())) === centerBefore,
+  'il trascinamento della linea non sposta la mappa');
+
+
 // inverti il giro e andata e ritorno
 const before = await page.evaluate(() => window.__wm.state.points.map(p => p.join()));
 await page.locator('#reverse').click({timeout: 3000}).catch(() => fails.push('pulsante inverti assente'));
@@ -76,7 +116,6 @@ const closed = await page.waitForFunction(n => window.__wm.state.points.length =
 check(closed, 'andata e ritorno chiude il giro per la stessa via');
 await page.waitForFunction(() => window.__wm.state.results.nuovo, null, {timeout: 30000}).catch(() => {});
 
-check((await txt('#segments'))?.includes('esperto'), 'tabella dei tratti: profilo usato');
 
 await page.goto(base + '?p=12.0,45.0;12.1,45.1&motore=nuovo&c=12,45&z=12');
 await page.waitForFunction(() => document.querySelector('#err')?.textContent.trim(), null, {timeout: 15000}).catch(() => {});

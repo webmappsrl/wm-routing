@@ -648,7 +648,11 @@ function pinTip(f, coord) {
     '<button data-a="close">Chiudi</button></div>';
   tip.classList.add('pinned');
   tip.style.display = 'block';
-  tip.querySelector('[data-a=add]').addEventListener('click', () => { closeTip(); addPoint(coord, null); });
+  tip.querySelector('[data-a=add]').addEventListener('click', () => {
+    const seg = f.get('seg');
+    closeTip();
+    addPointAt(coord, null, seg ? legOf(seg.from) : null);
+  });
   tip.querySelector('[data-a=close]').addEventListener('click', closeTip);
 }
 function closeTip() {
@@ -754,9 +758,59 @@ function showRejoin() {
 
 // --- eventi ----------------------------------------------------------------
 
+// Trascinare il tracciato col mouse inserisce un punto nel tratto preso, come in
+// ogni planner. Solo col mouse: col dito il gesto e' lo spostamento della mappa.
+let skipClickUntil = 0;
+const dragGhost = new ol.Feature();
+dragGhost.set('style', new ol.style.Style({image: new ol.style.Circle({radius: 8,
+  fill: new ol.style.Fill({color: '#fff'}), stroke: new ol.style.Stroke({color: '#111', width: 2})})}));
+const DragRoute = class extends ol.interaction.Pointer {
+  handleDownEvent(e) {
+    if (e.originalEvent.pointerType === 'touch' || rejoinOn) return false;
+    const seg = featureAt(e.pixel, 6)?.get('seg');
+    if (!seg || state.loading) return false;
+    this.leg = legOf(seg.from);
+    this.moved = false;
+    return true;                       // il pan della mappa non parte
+  }
+  handleDragEvent(e) {
+    this.moved = true;
+    dragGhost.setGeometry(new ol.geom.Point(e.coordinate));
+    if (!routeSource.hasFeature(dragGhost)) routeSource.addFeature(dragGhost);
+  }
+  handleUpEvent(e) {
+    if (routeSource.hasFeature(dragGhost)) routeSource.removeFeature(dragGhost);
+    // il down catturato sopprime il singleclick della mappa: anche il clic fermo
+    // sul tracciato si chiude qui (inserimento nel tratto preso)
+    skipClickUntil = Date.now() + 400;
+    addPointAt(ol.proj.toLonLat(e.coordinate), null, this.leg);
+    return false;
+  }
+};
+map.addInteraction(new DragRoute());
+
+// Inserisce il punto nella tappa (leg) a cui appartiene l'indice di geometria,
+// come fanno i planner: un punto su un tratto a meta' giro corregge quel tratto,
+// non allunga il giro. Gli indici delle tappe arrivano dal gateway (waypoints).
+function legOf(geomIndex) {
+  const wps = state.results.nuovo?.waypoints;
+  if (!wps?.length) return null;
+  let leg = 0;
+  for (const w of wps) if (w.index <= geomIndex && w.punto < state.points.length - 1) leg = w.punto;
+  return leg;
+}
+function addPointAt(p, poi, leg) {
+  const at = leg === null || leg === undefined ? state.points.length : leg + 1;
+  state.points.splice(at, 0, poi ? poi.coord : p);
+  state.poi.splice(at, 0, poi ?? null);
+  state.lastInserted = state.points[at];
+  if (poi) flash(`Punto ${at + 1}: ${poiText(poi)}`);
+  recompute().catch(showError);
+}
 function addPoint(p, poi) {
   state.points.push(poi ? poi.coord : p);
   state.poi[state.points.length - 1] = poi;
+  state.lastInserted = state.points.at(-1);
   // sul telefono il nome della tappa sta in una scheda chiusa: lo si conferma nel riepilogo
   if (poi) flash(`Punto ${state.points.length}: ${poiText(poi)}`);
   recompute().catch(showError);
@@ -779,12 +833,18 @@ map.on('singleclick', e => {
   const pinned = $('tooltip').classList.contains('pinned');
   closeTip();
   if (pinned) return;                 // il primo tocco chiude i dettagli aperti
+  if (skipClickUntil > Date.now()) return;      // il trascinamento ha gia' inserito
   // un clic su un punto di interesse delle tile prende le sue coordinate esatte e il
   // suo nome, anche vicino al percorso: l'icona e' un bersaglio piu' preciso del tratto
   const poi = findPoi(e.pixel);
   if (!poi && touch.matches) {
     const f = featureAt(e.pixel, 10);
     if (f) return pinTip(f, p);
+  }
+  if (!poi) {
+    // sul desktop un clic sul tracciato del motore nuovo corregge quel tratto
+    const seg = featureAt(e.pixel, 6)?.get('seg');
+    if (seg) return addPointAt(p, null, legOf(seg.from));
   }
   addPoint(p, poi);
 });
