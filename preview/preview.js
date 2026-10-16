@@ -197,6 +197,7 @@ function drawMini() {
   el.innerHTML = state.rejoinLoading ? 'Calcolo del rientro…'
     : rejoinOn ? 'Simulazione del rientro attiva: tocca dove si trova la persona.'
     : err ? `<span class="err">${err.split('\n')[0]}</span>`
+    : state.flash ? `<b>${state.flash}</b>`
     : state.loading ? 'Calcolo del percorso…'
     : state.points.length < 2 ? `Tocca la mappa per aggiungere i punti del giro: ${state.points.length ? 'ne manca uno' : 'ne servono almeno due'}.`
     : [nuovo && line('Nuovo', nuovo), produzione && line('Produzione', produzione)].filter(Boolean).join('<br>');
@@ -237,7 +238,7 @@ const map = new ol.Map({
     zoom: Number(q.get('z') ?? 13),
   }),
 });
-window.__wm = {map, state};
+window.__wm = {map, state, routeSource};
 olms.apply(map, 'https://tiles.maphub.it/style.json').then(() => map.addLayer(routeLayer)).catch(showError);
 
 function showError(e) { $('err').textContent = e ? String(e?.message ?? e) : ''; drawMini(); }
@@ -340,11 +341,16 @@ function draw() {
           `${c.distanceM ?? ''}${c.distanceM !== undefined ? ' m ' : ''}in linea d'aria dal punto ${c.punto + 1} alla via`}});
   state.points.forEach((p, i) => routeSource.addFeature(new ol.Feature({
     geometry: new ol.geom.Point(ol.proj.fromLonLat(p)),
-    style: new ol.style.Style({
+    style: [new ol.style.Style({
       image: new ol.style.Circle({radius: 10, fill: new ol.style.Fill({color: '#111'}),
                                   stroke: new ol.style.Stroke({color: '#fff', width: 2})}),
       text: new ol.style.Text({text: String(i + 1), fill: new ol.style.Fill({color: '#fff'}), font: 'bold 11px system-ui'}),
     }),
+    // una tappa presa da un'icona delle tile porta il suo nome accanto al numero
+    ...(state.poi[i] ? [new ol.style.Style({text: new ol.style.Text({text: state.poi[i].name, offsetX: 15,
+      textAlign: 'left', font: 'bold 12px system-ui', fill: new ol.style.Fill({color: '#111'}),
+      stroke: new ol.style.Stroke({color: '#fff', width: 3})})})] : []),
+    ],
   })));
   drawPoints();
   drawResults();
@@ -701,7 +707,16 @@ function showRejoin() {
 function addPoint(p, poi) {
   state.points.push(poi ? poi.coord : p);
   state.poi[state.points.length - 1] = poi;
+  // sul telefono il nome della tappa sta in una scheda chiusa: lo si conferma nel riepilogo
+  if (poi) flash(`Punto ${state.points.length}: ${poiText(poi)}`);
   recompute().catch(showError);
+}
+let flashTimer;
+function flash(text) {
+  state.flash = text;
+  clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => { state.flash = null; drawMini(); }, 4000);
+  drawMini();
 }
 map.on('singleclick', e => {
   const p = ol.proj.toLonLat(e.coordinate);
@@ -709,12 +724,14 @@ map.on('singleclick', e => {
   const pinned = $('tooltip').classList.contains('pinned');
   closeTip();
   if (pinned) return;                 // il primo tocco chiude i dettagli aperti
-  if (touch.matches) {
+  // un clic su un punto di interesse delle tile prende le sue coordinate esatte e il
+  // suo nome, anche vicino al percorso: l'icona e' un bersaglio piu' preciso del tratto
+  const poi = findPoi(e.pixel);
+  if (!poi && touch.matches) {
     const f = featureAt(e.pixel, 10);
     if (f) return pinTip(f, p);
   }
-  // un clic su un punto di interesse delle tile prende le sue coordinate esatte e il suo nome
-  addPoint(p, findPoi(e.pixel));
+  addPoint(p, poi);
 });
 document.querySelectorAll('input[name=engine]').forEach(r => r.addEventListener('change', () => {
   $('engine-help').textContent = ENGINE_HELP[engineMode()];

@@ -220,6 +220,14 @@ senza GPU disegna lentamente: i tocchi del controllo aspettano fino a 10 s.
   reinquadrava il percorso sopra la vista scritta nell'indirizzo: ora inquadra
   solo se l'indirizzo non ha `c`.
 
+- **Sul telefono la scelta di una tappa dalle icone sembrava non funzionare**
+  (16 ottobre 2026, segnalato dall'utente): il tocco prendeva l'icona (verificato
+  con Chromium e WebKit), ma il nome stava solo nella scheda Punti, chiusa, e
+  sulla mappa il punto era uguale agli altri; vicino al percorso il tocco apriva
+  invece i dettagli del tratto. Ora l'icona ha la precedenza sul tratto, il
+  riepilogo dice per 4 s "Punto N: nome" e il nome sta sulla mappa accanto al
+  numero. `preview-mobile-check.mjs` gira anche su WebKit (`WM_ENGINE=webkit`).
+
 ## Decisioni
 
 - **Punteggio del rientro**: tempo di rientro piu' due volte il tempo del

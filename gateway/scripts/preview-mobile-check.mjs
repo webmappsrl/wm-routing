@@ -1,12 +1,13 @@
 // La preview su un telefono: mappa a tutto schermo, pannello che sale dal basso
 // con le schede, riepilogo sempre visibile, dettagli di un tratto al tocco.
 // Uso, dalla cartella gateway: node scripts/preview-mobile-check.mjs [base] [dispositivo Playwright]
-import {chromium, devices} from 'playwright';
+// (WM_ENGINE=webkit per il motore di Safari: npx playwright install webkit)
+import {chromium, webkit, devices} from 'playwright';
 const base = process.argv[2] ?? 'http://127.0.0.1:8991/preview/';
 const device = process.argv[3] ?? 'iPhone 13';
 const fails = [];
 const check = (cond, msg) => { if (!cond) fails.push(msg); };
-const browser = await chromium.launch();
+const browser = await (process.env.WM_ENGINE === 'webkit' ? webkit : chromium).launch();
 const ctx = await browser.newContext({...devices[device]});
 const page = await ctx.newPage();
 const errors = [];
@@ -144,6 +145,33 @@ const kept = await p2.evaluate(() => {
   return Math.abs(lon - 10.6) < 1e-3 && Math.abs(lat - 43.8) < 1e-3 && Math.abs(v.getZoom() - 15) < 0.01;
 });
 check(kept, 'riaperta con la vista nell\'indirizzo, la pagina la mantiene');
+
+// un tocco su un'icona delle tile (cima, rifugio...) la prende come tappa, anche
+// vicino al percorso, e lo dice: il nome compare nel riepilogo e sulla mappa
+const p3 = await ctx.newPage();
+await p3.goto(base + '?p=10.5205,43.7244;10.5555,43.7505&c=10.5546,43.7505&z=14');
+await p3.waitForFunction(() => window.__wm?.state?.results?.nuovo, null, {timeout: 30000}).catch(() => {});
+await p3.waitForTimeout(3000);
+const icon = await p3.evaluate(() => {
+  const bottom = innerHeight - document.querySelector('#panel').offsetHeight - 20;
+  for (let y = 120; y < bottom; y += 4) for (let x = 20; x < innerWidth - 20; x += 4)
+    if (findPoi([x, y]) && featureAt([x, y], 10)) return [x, y, findPoi([x, y]).name];   // vicino al percorso
+  for (let y = 120; y < bottom; y += 4) for (let x = 20; x < innerWidth - 20; x += 4)
+    if (findPoi([x, y])) return [x, y, findPoi([x, y]).name];
+  return null;
+});
+check(icon, 'c\'e\' un\'icona delle tile da toccare');
+if (icon) {
+  await p3.touchscreen.tap(icon[0], icon[1]);
+  const took = await p3.waitForFunction(n => window.__wm.state.poi[2]?.name === n, icon[2], {timeout: 5000})
+    .then(() => true, () => false);
+  check(took, `tocco sull'icona: diventa la tappa 3 (${icon[2]})`);
+  check((await p3.textContent('#mini'))?.includes(icon[2]), 'tocco sull\'icona: il nome compare nel riepilogo');
+  const label = await p3.waitForFunction(n => window.__wm.routeSource.getFeatures()
+    .flatMap(f => [].concat(f.get('style') ?? [])).some(st => st?.getText?.()?.getText?.() === n), icon[2],
+    {timeout: 30000}).then(() => true, () => false);
+  check(label, 'tocco sull\'icona: il nome compare sulla mappa accanto al punto');
+}
 
 check(!errors.length, `errori JavaScript: ${errors.join('; ')}`);
 await browser.close();
