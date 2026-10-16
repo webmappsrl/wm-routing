@@ -120,6 +120,29 @@
   Compose; `/v1/version` con la data del PBF; nessuna coordinata nei log; con
   il motore fermo una richiesta aspetta (8,3 s) e risponde 200.
 
+### Primo avvio sul server: solo la cella di Pisa (16 ottobre 2026)
+
+Scelta dell'utente: prima la preview in produzione sul caso di Pisa, l'Italia
+dopo. `https://routing.maphub.it` (record A esplicito: `*.maphub.it` ha un
+jolly che punta altrove), la radice porta a `/preview/`. Il servizio gira con:
+
+```bash
+WM_GRAPH_BBOX=10.0,43.0,11.0,44.0 WM_ENGINE_CONFIG=config-cella.yml \
+WM_ENGINE_JAVA=-Xmx2g WM_ENGINE_MEM=4g
+```
+
+e ogni `docker compose` a mano li vuole, altrimenti riparte col rettangolo
+nazionale su un grafo di cella. Il grafo e' stato costruito con
+`WM_STAMP_TS` preso da `europe-latest.osm.pbf`: `italia.osm.pbf` e' un
+`osmium extract` senza `osmosis_replication_timestamp` ne' riquadro, quindi
+`check-data.sh` notturno non funziona finche' il PBF italiano non porta la
+data (da risolvere prima dell'import nazionale). Il Caddyfile ha solo la riga
+di import della PR #1 di wm-tiles, aggiunta a mano (copia in
+`/etc/caddy/Caddyfile.prima-di-routing`): `pubblica-dominio.sh` avrebbe
+riavviato anche wm-tiles. Le quote sono l'intero z13 d'Italia (4,6 GB, prima
+della correzione di `pack-terrain.py`): lasciate, servono all'import
+nazionale.
+
 ## Bug trovati
 
 - **Il percorso non partiva dal punto cliccato** (segnalato dal dev): il motore
