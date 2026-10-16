@@ -329,6 +329,10 @@ function draw() {
     for (const seg of segs) {
       const styles = [lineStyle('#ffffff', 8), lineStyle(segColor(seg, by), 5)];
       if (seg.profile && seg.profile !== nuovo.profile) styles.push(lineStyle('#111111', 1.5, [4, 4]));
+      // il segnavia scritto lungo il tratto, come sui cartelli
+      if (seg.ref) styles.push(new ol.style.Style({text: new ol.style.Text({
+        text: seg.ref.replaceAll(';', ' · '), placement: 'line', repeat: 320, font: 'bold 11px system-ui',
+        fill: new ol.style.Fill({color: '#7a2000'}), stroke: new ol.style.Stroke({color: '#fff', width: 3})})}));
       addLine(c.slice(seg.from, seg.to + 1), styles, {seg});
     }
     if (state.highlight)
@@ -716,6 +720,7 @@ function tipHtml(f) {
       `Tipo: ${ROAD_IT[seg.roadClass] ?? seg.roadClass ?? 'n.d.'} · fondo: ` +
       `${seg.surface && seg.surface !== 'missing' ? (SURFACE_IT[seg.surface] ?? seg.surface) : 'non indicato'}<br>` +
       `Pendenza media: ${seg.slope ?? 0}%${seg.ford ? '<br>Guado' : ''}${seg.dismount ? '<br>Bici a mano' : ''}` +
+      (seg.osmWayId ? `<br>Via OSM: ${seg.osmWayId}` : '') +
       (seg.profile && seg.profile !== state.results.nuovo?.profile ? `<br><b>Calcolato con il profilo ${seg.profile}</b>` : '')
     : `<b>${f.get('info').title}</b>`;
 }

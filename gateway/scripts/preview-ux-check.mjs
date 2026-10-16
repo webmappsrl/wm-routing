@@ -101,6 +101,34 @@ check((await txt('#warning'))?.includes('esperto'), 'avviso sui tratti calcolati
     await page.waitForFunction(() => window.__wm.state.results.nuovo, null, {timeout: 30000}).catch(() => {});
   }
 }
+// segnavia scritto lungo il tracciato e via OSM nei dettagli
+check(await page.evaluate(() => window.__wm.routeSource.getFeatures()
+  .flatMap(f => [].concat(f.get('style') ?? [])).some(st => st?.getText?.()?.getPlacement?.() === 'line'
+    && /\d|[A-Z]/.test(st.getText().getText() ?? ''))), 'segnavia scritto lungo il tracciato');
+{
+  await page.waitForFunction(() => window.__wm.state.results.nuovo?.segments?.some(x => x.osmWayId),
+    null, {timeout: 30000}).catch(() => fails.push('nessun tratto con osmWayId'));
+  // un pixel dove sotto il mouse c'e' proprio un tratto con osmWayId (non un pallino o una tappa)
+  const segPx = await page.evaluate(() => {
+    const {map, state} = window.__wm;
+    const r = state.results.nuovo;
+    if (!r) return [0, 0];
+    for (const seg of r.segments.filter(x => x.osmWayId)) {
+      const i = Math.floor((seg.from + seg.to) / 2);
+      const px = map.getPixelFromCoordinate(ol.proj.fromLonLat(r.geometry.coordinates[i].slice(0, 2)));
+      if (px[0] < 20 || px[0] > 900 || px[1] < 20 || px[1] > 830) continue;
+      const hit = map.forEachFeatureAtPixel(px, f => (f.get('seg') || f.get('info') ? f : undefined), {hitTolerance: 4});
+      if (hit?.get('seg')?.osmWayId) return px;
+    }
+    return [0, 0];
+  });
+  if (segPx[0] > 0 && segPx[0] < 920 && segPx[1] > 0 && segPx[1] < 850) {
+    await page.mouse.move(segPx[0], segPx[1]);
+    await page.waitForTimeout(400);
+    check(/Via OSM: \d+/.test(await txt('#tooltip') ?? ''), 'via OSM nei dettagli del tratto');
+    await page.mouse.move(10, 400);
+  }
+}
 // frecce del verso di percorrenza sul tracciato
 check(await page.evaluate(() => window.__wm.routeSource.getFeatures().filter(f => f.get('arrow')).length > 2),
   'frecce di direzione sul tracciato');
@@ -161,6 +189,7 @@ if (inserted) {
 await page.waitForFunction(() => window.__wm.state.results.nuovo, null, {timeout: 30000}).catch(() => {});
 const dragFrom = await page.evaluate(() => {
   const {map, state} = window.__wm;
+  if (!state.results.nuovo) return null;
   const c = state.results.nuovo.geometry.coordinates;
   const marks = (state.alongRoute ?? []).map(x => map.getPixelFromCoordinate(ol.proj.fromLonLat(x.coord)));
   for (let i = Math.floor(c.length * 0.2); i < c.length; i++) {
@@ -170,7 +199,9 @@ const dragFrom = await page.evaluate(() => {
   }
   return map.getPixelFromCoordinate(ol.proj.fromLonLat(c[Math.floor(c.length / 4)].slice(0, 2)));
 });
+if (!dragFrom) fails.push('trascinamento: nessun tracciato (' + ((await txt('#err')) ?? '') + ')');
 const nPts2 = await page.evaluate(() => window.__wm.state.points.length);
+if (dragFrom) {
 await page.mouse.move(dragFrom[0], dragFrom[1]);
 await page.mouse.down();
 await page.mouse.move(dragFrom[0] + 40, dragFrom[1] - 25, {steps: 8});
@@ -178,6 +209,7 @@ await page.mouse.up();
 const dragged = await page.waitForFunction(n => window.__wm.state.points.length === n + 1, nPts2, {timeout: 10000})
   .then(() => true, () => false);
 check(dragged, 'trascinando la linea si inserisce un punto');
+}
 const centerBefore = await page.evaluate(() => window.__wm.map.getView().getCenter().join());
 check((await page.evaluate(() => window.__wm.map.getView().getCenter().join())) === centerBefore,
   'il trascinamento della linea non sposta la mappa');

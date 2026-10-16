@@ -34,12 +34,14 @@ export function summarizeDetails(path, waysDb) {
   let unknownM = 0, totalM = 0;
   for (let k = 0; k + 1 < c.length; k++) {
     const [from, to] = [c[k], c[k + 1]];
-    const way = lookup?.get(valueAt(d.osm_way_id, from)) ?? {};
+    const osmWayId = valueAt(d.osm_way_id, from) ?? null;
+    const way = lookup?.get(osmWayId) ?? {};
     const rating = valueAt(d.hike_rating, from) ?? 0;
     const origin = way.origin ?? (rating ? 'sac' : 'none');
     const seg = {
       from, to, difficulty: ratingToCai(rating, origin), origin,
       sac: way.sac ?? null, longChain: way.long_chain === 1, ref: way.refs ?? null,
+      osmWayId,
       surface: valueAt(d.surface, from) ?? null, network: valueAt(d.foot_network, from) ?? null,
       slope: valueAt(d.average_slope, from) ?? null,
       roadClass: valueAt(d.road_class, from) ?? null,

@@ -35,6 +35,8 @@ it('unisce i dettagli del motore e la tabella laterale, senza esporre horse_rati
   expect(r.segments[0].ford).toBe(false);
   expect(r.segments[0].dismount).toBe(false);
   expect(r.segments[0]).toMatchObject({from: 0, to: 2, difficulty: 'EE', origin: 'cai', sac: 'alpine_hiking', longChain: false});
+  expect(r.segments[0].osmWayId).toBe(11);
+  expect(r.segments[1].osmWayId).toBe(12);
   expect(r.segments[1]).toMatchObject({from: 2, to: 3, difficulty: null, origin: 'none', longChain: true});
   expect(JSON.stringify(r)).not.toContain('horse');
   expect(r.unknownShare).toBeCloseTo(1 / 3, 2);
