@@ -103,6 +103,59 @@ nell'app restano inutilizzati.
 - [ ] Ogni testo nuovo tradotto in tutte le lingue gia' presenti nel repo
 - [ ] Verifica in OpenLayers, la libreria usata in produzione
 
+## Funzioni da guida escursionistica (dalla preview, 16 ottobre 2026)
+
+Aggiunte alla preview su richiesta del committente dopo il confronto con i
+planner concorrenti (Komoot, AllTrails, Strava, GraphHopper Maps): ognuna e'
+pensata per essere riprodotta nell'app. La preview e' il riferimento di
+implementazione, in OpenLayers come l'app.
+
+- [ ] **Tempi alle tappe**: la risposta di `/route` ha `waypoints`
+      (`punto`, `index` nella geometria, `distanceM` e `timeH` DIN dalla
+      partenza). L'app li mostra accanto a ogni tappa, come i cartelli dei
+      sentieri. L'`index` serve anche a inserire un punto nella tappa giusta
+      (sotto)
+- [ ] **Difficolta' complessiva**: la massima dei tratti (ordine T, E, EE,
+      EEA, via ferrata, ghiacciaio), mostrata come distintivo accanto al
+      risultato (`overallDifficulty` nella preview)
+- [ ] **Quota minima e massima e tratto piu' ripido** dai dettagli per tratto
+      (`hikeStats`): il tratto piu' ripido e' cliccabile e si evidenzia
+- [ ] **Segnavia**: ogni tratto ha `ref` (es. `"00;139"`, piu' segnavia
+      separati da `;`). Si mostrano nei dettagli e in sintesi ("Segnavia: 00
+      5,2 km, 139 1,1 km"). Richiede un grafo costruito con il pre-passo dal
+      commit `e9c1d47` in poi: con una tabella laterale vecchia `ref` e' null
+- [ ] **GPX**: si genera sul client dalla geometria (traccia con quote) e dai
+      punti (wpt, col nome se la tappa viene da un POI): `toGpx()` della
+      preview e' riusabile tale e quale
+- [ ] **Inverti il giro / andata e ritorno**: operazioni sull'elenco dei punti
+      (reverse; append dei punti in ordine inverso), il ricalcolo fa il resto
+- [ ] **Punto inserito nella tappa giusta**: un punto aggiunto toccando il
+      tracciato si inserisce fra i due punti del tratto a cui appartiene
+      (`legOf(seg.from)` con `waypoints[].index`), non in coda
+- [ ] **Trascinare il tracciato (solo mouse)**: `ol.interaction.Pointer`;
+      `handleDownEvent` che risponde `true` su un tratto del percorso blocca il
+      pan; al rilascio si inserisce il punto nel leg. Col dito non si fa: il
+      gesto e' lo spostamento della mappa. Attenzione: il down catturato
+      sopprime il `singleclick`, quindi anche il clic fermo si gestisce li'
+- [ ] **Profilo altimetrico interattivo**: canvas con il tracciato colorato
+      per criterio (stessi colori della mappa), alternative in grigio;
+      al passaggio/tocco un segnaposto sulla mappa e la lettura
+      "km · quota · pendenza · difficolta' · segnavia" (mappa pixel→distanza
+      cumulata→indice della geometria)
+- [ ] **Frecce del verso di percorrenza**: `ol.style.RegularShape` a 3 punte
+      ruotata con `Math.atan2(dx, dy)` e `rotateWithView: true`, una ogni
+      ~700 m lungo la geometria
+- [ ] **Acqua e ripari lungo il giro**: sorgenti, fontane e rifugi entro 150 m
+      dal tracciato, con il km. La preview legge le feature delle tile gia'
+      caricate (`getFeaturesInExtent` sulle sorgenti vettoriali: elenco
+      indicativo, dipende dalle tile in memoria); l'app, che conosce il
+      servizio tile, puo' chiedere le tile z14 toccate dalla traccia e avere
+      l'elenco completo. Il nome non si pretende: una fontana senza nome e'
+      acqua lo stesso
+- [ ] **Arrivo col buio** (solo app, non in preview): ora prevista d'arrivo =
+      partenza + tempo DIN; se supera il tramonto (calcolabile sul client),
+      avvisare prima di partire
+
 ## Rischi
 
 - **Le versioni in uso non sono quelle dei cloni locali.** La webapp punta a

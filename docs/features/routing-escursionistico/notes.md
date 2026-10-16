@@ -228,6 +228,32 @@ senza GPU disegna lentamente: i tocchi del controllo aspettano fino a 10 s.
   riepilogo dice per 4 s "Punto N: nome" e il nome sta sulla mappa accanto al
   numero. `preview-mobile-check.mjs` gira anche su WebKit (`WM_ENGINE=webkit`).
 
+### La preview diventa una guida: confronto coi planner (16 ottobre 2026)
+
+Su richiesta dell'utente ("applica tutte le migliorie proposte", /goal con
+piena liberta'), dopo un confronto con Komoot, AllTrails, Strava, bergfex,
+GraphHopper Maps e BRouter-web. Aggiunte, ciascuna col suo controllo in
+`preview-ux-check.mjs` o `preview-mobile-check.mjs` (prima rosso, poi verde):
+
+- **API**: `waypoints` in `/route` (indice nella geometria, distanza e tempo
+  DIN dalla partenza per ogni tappa; i cumulati della geometria sono riportati
+  ai totali del motore, cosi' l'ultima tappa coincide col totale); `ref` dei
+  segnavia per tratto, dal pre-passo (`refs` in `ways.sqlite`, colonna nuova:
+  con una tabella vecchia il gateway continua con `ref` null).
+- **Scheda da guida**: distintivo della difficolta' complessiva (massima dei
+  tratti), quota min-max, tratto piu' ripido cliccabile, tempi alle tappe
+  nell'elenco dei punti, segnavia in tabella/sintesi/dettagli.
+- **Strumenti da planner**: GPX client-side (traccia con quote + wpt coi nomi
+  delle tappe), copia/condivisione del link, inverti il giro, andata e
+  ritorno, punto inserito nella tappa giusta (non in coda), trascinamento del
+  tracciato col mouse (ol.interaction.Pointer; il down catturato sopprime il
+  singleclick, che si gestisce li'), profilo altimetrico interattivo e
+  colorato col criterio della legenda con alternative in grigio, frecce del
+  verso, acqua e ripari lungo il giro (dalle tile caricate, ricalcolato a
+  `rendercomplete` con freno di 2 s perche' le tile arrivano dopo il disegno).
+- Tutte le tecniche sono riportate come direttive in `map-core.md` (vincolo
+  dell'utente: riproducibili nell'app).
+
 ## Decisioni
 
 - **Punteggio del rientro**: tempo di rientro piu' due volte il tempo del
