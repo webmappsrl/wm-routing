@@ -694,6 +694,13 @@ map.on('pointermove', e => {
   if (touch.matches) return;          // sul telefono i dettagli arrivano al tocco
   const tip = $('tooltip');
   if (tip.classList.contains('pinned')) return;   // la finestrella appuntata resta: si chiude coi suoi pulsanti o cliccando altrove
+  // tooltip di un POI agganciato: finche' il mouse e' li' vicino (il varco di 14 px
+  // compreso, con margine abbondante) non si tocca niente, cosi' il link si clicca
+  if (tip.classList.contains('poi') && tip.style.display === 'block') {
+    const r = tip.getBoundingClientRect(), ev = e.originalEvent;
+    if (ev.clientX >= r.left - 30 && ev.clientX <= r.right + 10
+        && ev.clientY >= r.top - 30 && ev.clientY <= r.bottom + 10) return;
+  }
   const f = featureAt(e.pixel, 4);
   map.getTargetElement().style.cursor = f ? 'pointer' : '';
   if (f) { delete tip.dataset.poi; tip.classList.remove('poi'); }
@@ -701,11 +708,6 @@ map.on('pointermove', e => {
     const poi = rejoinOn ? null : findPoi(e.pixel);
     map.getTargetElement().style.cursor = poi ? 'pointer' : '';
     if (!poi) {
-      // se il mouse sta entrando nel tooltip, lo si lascia dov'e' (per cliccare il link)
-      const r = tip.getBoundingClientRect(), ev = e.originalEvent;
-      if (tip.classList.contains('poi') && tip.style.display === 'block'
-          && ev.clientX >= r.left - 6 && ev.clientX <= r.right + 6
-          && ev.clientY >= r.top - 6 && ev.clientY <= r.bottom + 6) return;
       tip.style.display = 'none'; tip.classList.remove('poi'); delete tip.dataset.poi; return;
     }
     tip.classList.add('poi');
