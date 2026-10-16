@@ -374,11 +374,11 @@ function drawPoints() {
     return w && i > 0 ? ` <small class="eta">${(w.distanceM / 1000).toFixed(1)} km · ${timeShort(w.timeH)}</small>` : '';
   };
   $('points').innerHTML = state.points.map((p, i) =>
-    `<li><span class="num">${i + 1}</span><span class="pt">${state.poi[i] ? poiText(state.poi[i]) : `${p[0].toFixed(5)}, ${p[1].toFixed(5)}`}` +
-    eta(i) + '</span>' +
-    (off.has(i) ? ` <span class="off">a ${off.get(i)} m dal sentiero</span>` : '') +
-    `<button data-i="${i}" title="Togli questo punto">×</button>` +
-    (state.poi[i]?.wiki ? wikiHtml(state.poi[i].wiki, 220) : '') + '</li>').join('');
+    `<li><span class="num">${i + 1}</span><div class="pt-body"><div class="pt-row">` +
+    `<span class="pt">${state.poi[i] ? poiText(state.poi[i]) : `${p[0].toFixed(5)}, ${p[1].toFixed(5)}`}${eta(i)}</span>` +
+    (off.has(i) ? `<span class="off">a ${off.get(i)} m dal sentiero</span>` : '') +
+    `<button data-i="${i}" title="Togli questo punto">×</button></div>` +
+    (state.poi[i]?.wiki ? wikiHtml(state.poi[i].wiki, 200) : '') + '</div></li>').join('');
   $('points').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
     state.points.splice(Number(b.dataset.i), 1);
     state.poi.splice(Number(b.dataset.i), 1);
@@ -714,9 +714,19 @@ map.on('pointermove', e => {
     const key = poi.coord.map(v => v.toFixed(5)).join();
     if (tip.dataset.poi !== key) {
       tip.dataset.poi = key;
-      tip.innerHTML = `<b>${poiText(poi)}</b>Clicca per usarlo come tappa del giro<div class="wiki-slot"></div>`;
+      const sub = [poi.kind, poi.ele ? `${poi.ele} m` : null].filter(Boolean).join(' · ');
+      tip.innerHTML = `<div class="tip-body"><b>${esc(poi.name)}</b>` +
+        (sub ? `<div class="sub">${esc(sub)}</div>` : '') +
+        `<div class="wiki-slot"></div><div class="hint">Clicca per usarlo come tappa del giro</div></div>`;
       fetchPlaceWiki(poi.coord, poi.name).then(w => {
-        if (w && tip.dataset.poi === key) { const slot = tip.querySelector('.wiki-slot'); if (slot) slot.innerHTML = wikiHtml(w); }
+        if (!w || tip.dataset.poi !== key) return;
+        const slot = tip.querySelector('.wiki-slot');
+        if (slot) slot.innerHTML = `<div class="wiki"><span>${esc(w.extract ?? '')} ` +
+          `<a href="${esc(w.content_urls?.desktop?.page ?? '#')}" target="_blank" rel="noopener">Wikipedia</a></span></div>`;
+        // la foto in testa, a tutta larghezza: e' lei che invoglia
+        // la miniatura (320 px): quella piena pesa megabyte e arriva dopo il mouse
+        const img = w.thumbnail?.source ?? w.originalimage?.source;
+        if (img) tip.insertAdjacentHTML('afterbegin', `<img class="hero" src="${esc(img)}" alt="">`);
       });
     }
     tip.style.display = 'block';

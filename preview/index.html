@@ -70,7 +70,14 @@
     .cai-detail dd { margin: 0; }
     .wiki { display: flex; gap: 8px; margin-top: 6px; font-size: 12.5px; }
     .wiki img { width: 72px; height: 72px; object-fit: cover; border-radius: 6px; flex: none; }
-    #points .wiki { margin: 2px 0 6px 28px; }
+    #tooltip.poi .wiki { margin-top: 0; }
+    /* nell'elenco dei punti il wiki sta SOTTO la riga del punto, non dentro */
+    #points .pt-body { flex: 1; min-width: 0; }
+    #points .pt-row { display: flex; align-items: center; gap: 8px; }
+    #points .pt-row .pt { flex: 1; min-width: 0; }
+    #points .pt-row button { margin-left: auto; }
+    #points .wiki { margin: 4px 0 2px; }
+    #points .wiki img { width: 56px; height: 56px; }
     .card dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 0; font-size: 13px; }
     .card dt { color: var(--muted); }
     .card dd { margin: 0; font-variant-numeric: tabular-nums; }
@@ -98,8 +105,20 @@
            font-size: 1.14em; line-height: 1; background: rgba(255,255,255,.85); border: 0; border-radius: 4px; }
     #sheet-top { display: none; }
     #tooltip.pinned, #tooltip.poi { pointer-events: auto; }
-    #tooltip.poi { max-width: 340px; }
     #tooltip a { color: #9ad1ff; }
+    /* scheda del POI: foto in testa, testo sotto, su fondo chiaro */
+    #tooltip.poi { padding: 0; background: #fff; color: var(--fg); border-radius: 12px;
+                   box-shadow: 0 10px 30px rgba(0,0,0,.35); max-width: 320px; overflow: hidden;
+                   font-size: 13px; }
+    #tooltip.poi .hero { width: 100%; height: 150px; object-fit: cover; display: block; }
+    #tooltip.poi .tip-body { padding: 10px 12px 9px; }
+    #tooltip.poi b { font-size: 15px; margin: 0; }
+    #tooltip.poi .sub { color: var(--muted); margin: 1px 0 6px; }
+    #tooltip.poi .wiki span { display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical;
+                              overflow: hidden; }
+    #tooltip.poi a { color: #0b63c5; }
+    #tooltip.poi .hint { margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--line);
+                         color: var(--muted); font-size: 12px; }
     #tooltip .actions { display: flex; gap: 8px; margin-top: 8px; }
     #tooltip .actions button { flex: 1; color: var(--fg); }
 
