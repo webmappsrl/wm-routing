@@ -1,0 +1,25 @@
+# Si avvia con `source tools/bbox.sh && docker compose up -d` (lo fa
+# build-graph.sh): il rettangolo del grafo sta solo in tools/bbox.sh.
+services:
+  engine:
+    image: "${WM_ENGINE_IMAGE:-wm-routing-engine:97f7fde}"
+    command: ["server", "${WM_ENGINE_CONFIG:-config.yml}"]
+    environment:
+      JAVA_OPTS: "${WM_ENGINE_JAVA:--Xmx8g -Xms8g}"   # sola lettura del grafo: engine/run.sh
+    mem_limit: "${WM_ENGINE_MEM:-12g}"
+    volumes:
+      - "${WM_GRAPHS:-/var/lib/wm-routing/grafi}/corrente:/graph:ro"
+      - "${WM_GRAPHS:-/var/lib/wm-routing/grafi}/corrente:/data:ro"
+    restart: unless-stopped
+  gateway:
+    build: { context: ., dockerfile: gateway/Dockerfile }
+    environment:
+      WM_ENGINE_URL: http://engine:8989
+      WM_WAYS_DB: /graph/ways.sqlite
+      WM_STAMP: /graph/stamp.json
+      WM_GRAPH_BBOX: "${WM_GRAPH_BBOX:?serve tools/bbox.sh}"
+    mem_limit: 512m
+    ports: ["127.0.0.1:8991:8991"]
+    volumes:
+      - "${WM_GRAPHS:-/var/lib/wm-routing/grafi}/corrente:/graph:ro"
+    restart: unless-stopped

@@ -1,0 +1,4 @@
+{
+  "parameters": { "max_hike_rating": 3, "max_slope": 100 },
+  "priority": [ { "if": "horse_rating == 6", "multiply_by": "0.1" } ]
+}

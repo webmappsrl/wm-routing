@@ -1,0 +1,452 @@
+[
+ {
+  "id": "p01",
+  "points": [
+   [
+    10.30595,
+    43.94908
+   ],
+   [
+    10.30479,
+    43.99193
+   ]
+  ],
+  "nuovo": "escursionista",
+  "produzione": "hike"
+ },
+ {
+  "id": "p02",
+  "points": [
+   [
+    10.65885,
+    43.90921
+   ],
+   [
+    10.59269,
+    43.90833
+   ]
+  ],
+  "nuovo": "escursionista",
+  "produzione": "hike"
+ },
+ {
+  "id": "p03",
+  "points": [
+   [
+    10.95415,
+    43.5392
+   ],
+   [
+    10.88079,
+    43.5412
+   ]
+  ],
+  "nuovo": "escursionista",
+  "produzione": "hike"
+ },
+ {
+  "id": "p04",
+  "points": [
+   [
+    10.37936,
+    43.69196
+   ],
+   [
+    10.31986,
+    43.72922
+   ]
+  ],
+  "nuovo": "escursionista",
+  "produzione": "hike"
+ },
+ {
+  "id": "p05",
+  "points": [
+   [
+    10.68455,
+    43.54344
+   ],
+   [
+    10.61803,
+    43.52752
+   ]
+  ],
+  "nuovo": "escursionista",
+  "produzione": "hike"
+ },
+ {
+  "id": "p06",
+  "points": [
+   [
+    10.86025,
+    43.40119
+   ],
+   [
+    10.92135,
+    43.42904
+   ]
+  ],
+  "nuovo": "escursionista",
+  "produzione": "hike"
+ },
+ {
+  "id": "p07",
+  "points": [
+   [
+    10.69766,
+    43.89745
+   ],
+   [
+    10.76573,
+    43.93785
+   ]
+  ],
+  "nuovo": "escursionista",
+  "produzione": "hike"
+ },
+ {
+  "id": "p08",
+  "points": [
+   [
+    10.9064,
+    43.21301
+   ],
+   [
+    10.879,
+    43.25319
+   ]
+  ],
+  "nuovo": "escursionista",
+  "produzione": "hike"
+ },
+ {
+  "id": "p09",
+  "points": [
+   [
+    10.34676,
+    43.55405
+   ],
+   [
+    10.30563,
+    43.55385
+   ]
+  ],
+  "nuovo": "escursionista",
+  "produzione": "hike"
+ },
+ {
+  "id": "p10",
+  "points": [
+   [
+    10.74777,
+    43.91507
+   ],
+   [
+    10.73436,
+    43.89437
+   ]
+  ],
+  "nuovo": "escursionista",
+  "produzione": "hike"
+ },
+ {
+  "id": "p11",
+  "points": [
+   [
+    10.99588,
+    43.82395
+   ],
+   [
+    10.96507,
+    43.78872
+   ]
+  ],
+  "nuovo": "escursionista",
+  "produzione": "hike"
+ },
+ {
+  "id": "p12",
+  "points": [
+   [
+    10.96371,
+    43.81246
+   ],
+   [
+    10.86996,
+    43.81665
+   ]
+  ],
+  "nuovo": "escursionista",
+  "produzione": "hike"
+ },
+ {
+  "id": "p13",
+  "points": [
+   [
+    10.84303,
+    43.43195
+   ],
+   [
+    10.86261,
+    43.40375
+   ]
+  ],
+  "nuovo": "escursionista",
+  "produzione": "hike"
+ },
+ {
+  "id": "p14",
+  "points": [
+   [
+    10.98981,
+    43.80341
+   ],
+   [
+    10.95826,
+    43.76328
+   ]
+  ],
+  "nuovo": "escursionista",
+  "produzione": "hike"
+ },
+ {
+  "id": "p15",
+  "points": [
+   [
+    10.56176,
+    43.70678
+   ],
+   [
+    10.48146,
+    43.67145
+   ]
+  ],
+  "nuovo": "escursionista",
+  "produzione": "hike"
+ },
+ {
+  "id": "p16",
+  "points": [
+   [
+    10.65056,
+    43.89909
+   ],
+   [
+    10.73454,
+    43.89619
+   ]
+  ],
+  "nuovo": "escursionista",
+  "produzione": "hike"
+ },
+ {
+  "id": "p17",
+  "points": [
+   [
+    10.61475,
+    43.52438
+   ],
+   [
+    10.60005,
+    43.57538
+   ]
+  ],
+  "nuovo": "escursionista",
+  "produzione": "hike"
+ },
+ {
+  "id": "p18",
+  "points": [
+   [
+    10.78554,
+    43.88062
+   ],
+   [
+    10.73702,
+    43.91627
+   ]
+  ],
+  "nuovo": "escursionista",
+  "produzione": "hike"
+ },
+ {
+  "id": "p19",
+  "points": [
+   [
+    10.53759,
+    43.89835
+   ],
+   [
+    10.50251,
+    43.84268
+   ]
+  ],
+  "nuovo": "escursionista",
+  "produzione": "hike"
+ },
+ {
+  "id": "p20",
+  "points": [
+   [
+    10.74365,
+    43.91401
+   ],
+   [
+    10.71832,
+    43.95442
+   ]
+  ],
+  "nuovo": "escursionista",
+  "produzione": "hike"
+ },
+ {
+  "id": "p21",
+  "points": [
+   [
+    10.86745,
+    43.66135
+   ],
+   [
+    10.87394,
+    43.61405
+   ]
+  ],
+  "nuovo": "escursionista",
+  "produzione": "hike"
+ },
+ {
+  "id": "p22",
+  "points": [
+   [
+    10.65677,
+    43.79365
+   ],
+   [
+    10.70673,
+    43.78255
+   ]
+  ],
+  "nuovo": "escursionista",
+  "produzione": "hike"
+ },
+ {
+  "id": "p23",
+  "points": [
+   [
+    10.81445,
+    43.97287
+   ],
+   [
+    10.76887,
+    43.95762
+   ]
+  ],
+  "nuovo": "escursionista",
+  "produzione": "hike"
+ },
+ {
+  "id": "p24",
+  "points": [
+   [
+    10.89065,
+    43.54474
+   ],
+   [
+    10.93535,
+    43.52676
+   ]
+  ],
+  "nuovo": "escursionista",
+  "produzione": "hike"
+ },
+ {
+  "id": "p25",
+  "points": [
+   [
+    10.60073,
+    43.73224
+   ],
+   [
+    10.54755,
+    43.70227
+   ]
+  ],
+  "nuovo": "escursionista",
+  "produzione": "hike"
+ },
+ {
+  "id": "p26",
+  "points": [
+   [
+    10.60557,
+    43.93412
+   ],
+   [
+    10.67879,
+    43.96352
+   ]
+  ],
+  "nuovo": "escursionista",
+  "produzione": "hike"
+ },
+ {
+  "id": "p27",
+  "points": [
+   [
+    10.69957,
+    43.61826
+   ],
+   [
+    10.75617,
+    43.58471
+   ]
+  ],
+  "nuovo": "escursionista",
+  "produzione": "hike"
+ },
+ {
+  "id": "p28",
+  "points": [
+   [
+    10.50248,
+    43.8418
+   ],
+   [
+    10.52088,
+    43.80742
+   ]
+  ],
+  "nuovo": "escursionista",
+  "produzione": "hike"
+ },
+ {
+  "id": "p29",
+  "points": [
+   [
+    10.77032,
+    43.88349
+   ],
+   [
+    10.77162,
+    43.81309
+   ]
+  ],
+  "nuovo": "escursionista",
+  "produzione": "hike"
+ },
+ {
+  "id": "p30",
+  "points": [
+   [
+    10.32541,
+    43.94938
+   ],
+   [
+    10.41883,
+    43.95465
+   ]
+  ],
+  "nuovo": "escursionista",
+  "produzione": "hike"
+ }
+]

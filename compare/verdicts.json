@@ -1,0 +1,118 @@
+{
+ "p01": {
+  "verdetto": "voluta",
+  "motivo": "distanza: escursionista evita un tratto EE; con esperto 9.851 m, piu' corto della produzione; salita piu' bassa che in produzione: DEM diverso (TINITALY 10 m e levigatura moving_average 150 m contro il DEM di produzione); in media 67% della produzione. Da confermare con tracce GPS note (notes.md, Follow-up); quota su sentieri segnati piu' alta: il profilo preferisce la rete CAI (x1,5), voluto"
+ },
+ "p02": {
+  "verdetto": "voluta",
+  "motivo": "salita piu' bassa che in produzione: DEM diverso (TINITALY 10 m e levigatura moving_average 150 m contro il DEM di produzione); in media 67% della produzione. Da confermare con tracce GPS note (notes.md, Follow-up)"
+ },
+ "p03": {
+  "verdetto": "voluta",
+  "motivo": "distanza: uguale con tutti i profili e 0% di sentieri sconosciuti, pesano le preferenze (rete CAI, sentieri fuori rete e strade principali penalizzati): voluto, da tarare; quota su sentieri segnati piu' alta: il profilo preferisce la rete CAI (x1,5), voluto"
+ },
+ "p04": {
+  "verdetto": "voluta",
+  "motivo": "salita piu' bassa che in produzione: DEM diverso (TINITALY 10 m e levigatura moving_average 150 m contro il DEM di produzione); in media 67% della produzione. Da confermare con tracce GPS note (notes.md, Follow-up); quota su sentieri segnati piu' alta: il profilo preferisce la rete CAI (x1,5), voluto"
+ },
+ "p05": {
+  "verdetto": "voluta",
+  "motivo": "salita piu' bassa che in produzione: DEM diverso (TINITALY 10 m e levigatura moving_average 150 m contro il DEM di produzione); in media 67% della produzione. Da confermare con tracce GPS note (notes.md, Follow-up); quota su sentieri segnati piu' alta: il profilo preferisce la rete CAI (x1,5), voluto"
+ },
+ "p06": {
+  "verdetto": "voluta",
+  "motivo": "salita piu' bassa che in produzione: DEM diverso (TINITALY 10 m e levigatura moving_average 150 m contro il DEM di produzione); in media 67% della produzione. Da confermare con tracce GPS note (notes.md, Follow-up); quota su sentieri segnati piu' alta: il profilo preferisce la rete CAI (x1,5), voluto"
+ },
+ "p07": {
+  "verdetto": "voluta",
+  "motivo": "salita piu' bassa che in produzione: DEM diverso (TINITALY 10 m e levigatura moving_average 150 m contro il DEM di produzione); in media 67% della produzione. Da confermare con tracce GPS note (notes.md, Follow-up); quota su sentieri segnati piu' alta: il profilo preferisce la rete CAI (x1,5), voluto"
+ },
+ "p09": {
+  "verdetto": "voluta",
+  "motivo": "salita piu' bassa che in produzione: DEM diverso (TINITALY 10 m e levigatura moving_average 150 m contro il DEM di produzione); in media 67% della produzione. Da confermare con tracce GPS note (notes.md, Follow-up); quota su sentieri segnati piu' alta: il profilo preferisce la rete CAI (x1,5), voluto"
+ },
+ "p10": {
+  "verdetto": "voluta",
+  "motivo": "salita piu' bassa che in produzione: DEM diverso (TINITALY 10 m e levigatura moving_average 150 m contro il DEM di produzione); in media 67% della produzione. Da confermare con tracce GPS note (notes.md, Follow-up); quota su sentieri segnati piu' alta: il profilo preferisce la rete CAI (x1,5), voluto"
+ },
+ "p11": {
+  "verdetto": "voluta",
+  "motivo": "salita piu' bassa che in produzione: DEM diverso (TINITALY 10 m e levigatura moving_average 150 m contro il DEM di produzione); in media 67% della produzione. Da confermare con tracce GPS note (notes.md, Follow-up); quota su sentieri segnati piu' alta: il profilo preferisce la rete CAI (x1,5), voluto"
+ },
+ "p12": {
+  "verdetto": "voluta",
+  "motivo": "salita piu' bassa che in produzione: DEM diverso (TINITALY 10 m e levigatura moving_average 150 m contro il DEM di produzione); in media 67% della produzione. Da confermare con tracce GPS note (notes.md, Follow-up); quota su sentieri segnati piu' alta: il profilo preferisce la rete CAI (x1,5), voluto"
+ },
+ "p13": {
+  "verdetto": "voluta",
+  "motivo": "salita piu' bassa che in produzione: DEM diverso (TINITALY 10 m e levigatura moving_average 150 m contro il DEM di produzione); in media 67% della produzione. Da confermare con tracce GPS note (notes.md, Follow-up); quota su sentieri segnati piu' alta: il profilo preferisce la rete CAI (x1,5), voluto"
+ },
+ "p14": {
+  "verdetto": "voluta",
+  "motivo": "salita piu' bassa che in produzione: DEM diverso (TINITALY 10 m e levigatura moving_average 150 m contro il DEM di produzione); in media 67% della produzione. Da confermare con tracce GPS note (notes.md, Follow-up); quota su sentieri segnati piu' alta: il profilo preferisce la rete CAI (x1,5), voluto"
+ },
+ "p15": {
+  "verdetto": "voluta",
+  "motivo": "salita piu' bassa che in produzione: DEM diverso (TINITALY 10 m e levigatura moving_average 150 m contro il DEM di produzione); in media 67% della produzione. Da confermare con tracce GPS note (notes.md, Follow-up); quota su sentieri segnati piu' alta: il profilo preferisce la rete CAI (x1,5), voluto"
+ },
+ "p16": {
+  "verdetto": "voluta",
+  "motivo": "salita piu' bassa che in produzione: DEM diverso (TINITALY 10 m e levigatura moving_average 150 m contro il DEM di produzione); in media 67% della produzione. Da confermare con tracce GPS note (notes.md, Follow-up); quota su sentieri segnati piu' alta: il profilo preferisce la rete CAI (x1,5), voluto"
+ },
+ "p17": {
+  "verdetto": "voluta",
+  "motivo": "distanza: come p03, da tarare; quota su sentieri segnati piu' alta: il profilo preferisce la rete CAI (x1,5), voluto"
+ },
+ "p18": {
+  "verdetto": "voluta",
+  "motivo": "salita piu' bassa che in produzione: DEM diverso (TINITALY 10 m e levigatura moving_average 150 m contro il DEM di produzione); in media 67% della produzione. Da confermare con tracce GPS note (notes.md, Follow-up); quota su sentieri segnati piu' alta: il profilo preferisce la rete CAI (x1,5), voluto"
+ },
+ "p19": {
+  "verdetto": "voluta",
+  "motivo": "salita piu' bassa che in produzione: DEM diverso (TINITALY 10 m e levigatura moving_average 150 m contro il DEM di produzione); in media 67% della produzione. Da confermare con tracce GPS note (notes.md, Follow-up); quota su sentieri segnati piu' alta: il profilo preferisce la rete CAI (x1,5), voluto"
+ },
+ "p20": {
+  "verdetto": "voluta",
+  "motivo": "salita piu' bassa che in produzione: DEM diverso (TINITALY 10 m e levigatura moving_average 150 m contro il DEM di produzione); in media 67% della produzione. Da confermare con tracce GPS note (notes.md, Follow-up); quota su sentieri segnati piu' alta: il profilo preferisce la rete CAI (x1,5), voluto"
+ },
+ "p21": {
+  "verdetto": "voluta",
+  "motivo": "distanza: come p03, da tarare; salita piu' bassa che in produzione: DEM diverso (TINITALY 10 m e levigatura moving_average 150 m contro il DEM di produzione); in media 67% della produzione. Da confermare con tracce GPS note (notes.md, Follow-up); quota su sentieri segnati piu' alta: il profilo preferisce la rete CAI (x1,5), voluto"
+ },
+ "p22": {
+  "verdetto": "voluta",
+  "motivo": "salita piu' bassa che in produzione: DEM diverso (TINITALY 10 m e levigatura moving_average 150 m contro il DEM di produzione); in media 67% della produzione. Da confermare con tracce GPS note (notes.md, Follow-up); quota su sentieri segnati piu' alta: il profilo preferisce la rete CAI (x1,5), voluto"
+ },
+ "p23": {
+  "verdetto": "voluta",
+  "motivo": "salita piu' bassa che in produzione: DEM diverso (TINITALY 10 m e levigatura moving_average 150 m contro il DEM di produzione); in media 67% della produzione. Da confermare con tracce GPS note (notes.md, Follow-up); quota su sentieri segnati piu' alta: il profilo preferisce la rete CAI (x1,5), voluto"
+ },
+ "p24": {
+  "verdetto": "voluta",
+  "motivo": "distanza: escursionista ed esperto evitano una catena lunga di sentieri sconosciuti; con alpinista 7.379 m; salita piu' bassa che in produzione: DEM diverso (TINITALY 10 m e levigatura moving_average 150 m contro il DEM di produzione); in media 67% della produzione. Da confermare con tracce GPS note (notes.md, Follow-up); quota su sentieri segnati piu' alta: il profilo preferisce la rete CAI (x1,5), voluto"
+ },
+ "p25": {
+  "verdetto": "voluta",
+  "motivo": "salita piu' bassa che in produzione: DEM diverso (TINITALY 10 m e levigatura moving_average 150 m contro il DEM di produzione); in media 67% della produzione. Da confermare con tracce GPS note (notes.md, Follow-up)"
+ },
+ "p26": {
+  "verdetto": "voluta",
+  "motivo": "salita piu' bassa che in produzione: DEM diverso (TINITALY 10 m e levigatura moving_average 150 m contro il DEM di produzione); in media 67% della produzione. Da confermare con tracce GPS note (notes.md, Follow-up)"
+ },
+ "p27": {
+  "verdetto": "voluta",
+  "motivo": "salita piu' bassa che in produzione: DEM diverso (TINITALY 10 m e levigatura moving_average 150 m contro il DEM di produzione); in media 67% della produzione. Da confermare con tracce GPS note (notes.md, Follow-up); quota su sentieri segnati piu' alta: il profilo preferisce la rete CAI (x1,5), voluto"
+ },
+ "p28": {
+  "verdetto": "voluta",
+  "motivo": "salita piu' bassa che in produzione: DEM diverso (TINITALY 10 m e levigatura moving_average 150 m contro il DEM di produzione); in media 67% della produzione. Da confermare con tracce GPS note (notes.md, Follow-up); quota su sentieri segnati piu' alta: il profilo preferisce la rete CAI (x1,5), voluto"
+ },
+ "p29": {
+  "verdetto": "voluta",
+  "motivo": "salita piu' bassa che in produzione: DEM diverso (TINITALY 10 m e levigatura moving_average 150 m contro il DEM di produzione); in media 67% della produzione. Da confermare con tracce GPS note (notes.md, Follow-up)"
+ },
+ "p30": {
+  "verdetto": "voluta",
+  "motivo": "distanza: escursionista evita un tratto EE; con esperto 15.112 m; salita piu' bassa che in produzione: DEM diverso (TINITALY 10 m e levigatura moving_average 150 m contro il DEM di produzione); in media 67% della produzione. Da confermare con tracce GPS note (notes.md, Follow-up); quota su sentieri segnati piu' alta: il profilo preferisce la rete CAI (x1,5), voluto"
+ }
+}

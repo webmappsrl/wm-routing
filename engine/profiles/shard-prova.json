@@ -1,0 +1,12 @@
+{
+  "areas": {
+    "type": "FeatureCollection",
+    "features": [{
+      "type": "Feature", "id": "chiuso1", "properties": {},
+      "geometry": { "type": "Polygon", "coordinates": [[
+        [10.0045, 44.0055], [10.0055, 44.0055], [10.0055, 44.0065], [10.0045, 44.0065], [10.0045, 44.0055]
+      ]] }
+    }]
+  },
+  "priority": [ { "if": "in_chiuso1", "multiply_by": "0" } ]
+}

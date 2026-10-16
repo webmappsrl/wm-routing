@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Manda richieste con coordinate riconoscibili e verifica che non compaiano nei
+# log di gateway e motore (overview, "Nessuna coordinata nei log"). Le
+# richieste devono arrivare davvero al motore: un percorso valido (dai percorsi
+# di prova) e un punto in mare nell'angolo sud-ovest del rettangolo, che il
+# motore non riesce ad agganciare e che GraphHopper descriverebbe nel suo log.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+source tools/bbox.sh
+URL="${1:-http://127.0.0.1:8991}"
+IFS=, read -r W S E N <<< "$WM_GRAPH_BBOX"
+SEA_LON=$(awk -v w="$W" 'BEGIN{printf "%.7f", w + 0.0337777}')
+SEA_LAT=$(awk -v s="$S" 'BEGIN{printf "%.7f", s + 0.0337777}')
+OK=$(jq -c '.[0].points' compare/routes.json)
+post() { curl -s -o /dev/null -w '%{http_code}' "$URL/v1/preview/$1" -H 'Content-Type: application/json' -d "$2" || true; }
+code=$(post route "{\"profile\":\"escursionista\",\"points\":$OK}")
+[ "$code" = 200 ] || { echo "!! il percorso valido non riesce (HTTP $code): controllo non valido" >&2; exit 1; }
+code=$(post route "{\"profile\":\"escursionista\",\"points\":[[$SEA_LON,$SEA_LAT],$(jq -c '.[0].points[1]' compare/routes.json)]}")
+case "$code" in 404|400) ;; *) echo "!! il punto in mare doveva arrivare al motore e fallire (HTTP $code)" >&2; exit 1;; esac
+post rejoin "{\"profile\":\"escursionista\",\"position\":[$SEA_LON,$SEA_LAT],\"track\":$OK,\"progressM\":0}" >/dev/null
+sleep 1
+if docker compose logs engine gateway 2>&1 | grep -qE "${SEA_LON%?????}|${SEA_LAT%?????}"; then
+  echo "!! una coordinata e' finita nei log" >&2; exit 1
+fi
+echo "ok: nessuna coordinata nei log"

@@ -1,0 +1,59 @@
+{
+  "prudente": {
+    "mode": "foot",
+    "version": "2",
+    "next": "escursionista",
+    "files": [
+      "foot_base.json",
+      "prudente.json"
+    ],
+    "sha256": "9fb2c35c49dac32aa5b3e9f4170c581b2dd4911b12c9c612dbe3b203dc0c72b0"
+  },
+  "escursionista": {
+    "mode": "foot",
+    "version": "2",
+    "next": "esperto",
+    "files": [
+      "foot_base.json",
+      "escursionista.json"
+    ],
+    "sha256": "5868c4e11b5b60b5d4285252a8c795d4ed64d3995554a24a471ec354222d80f5"
+  },
+  "esperto": {
+    "mode": "foot",
+    "version": "2",
+    "next": "alpinista",
+    "files": [
+      "foot_base.json",
+      "esperto.json"
+    ],
+    "sha256": "7c586d0fd555a0b781704a584572d725bb686a7c629fffe3f11ea9cfeb17b629"
+  },
+  "alpinista": {
+    "mode": "foot",
+    "version": "2",
+    "files": [
+      "foot_base.json",
+      "alpinista.json"
+    ],
+    "sha256": "56b6ec22199d7623dd8d1cdd2716721aa9f10ff44b4d61aee20382d7c435c343"
+  },
+  "mtb": {
+    "mode": "mtb",
+    "version": "1",
+    "files": [
+      "mtb_wm.json"
+    ],
+    "sha256": "0c553f5a38d0c6c9d4b8a48e5e5dd84567eab48e4bfd14ae4db741cc046af3a7"
+  },
+  "prova_escursionista": {
+    "mode": "foot",
+    "version": "2",
+    "files": [
+      "foot_base.json",
+      "escursionista.json",
+      "shard-prova.json"
+    ],
+    "sha256": "18c94dc34592a5a5f4bf71122289cc14b6321141711f0e34dbc0648a051b9882"
+  }
+}

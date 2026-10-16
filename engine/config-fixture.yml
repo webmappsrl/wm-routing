@@ -1,0 +1,41 @@
+graphhopper:
+  datareader.file: /data/rete.osm.pbf
+  graph.location: /data/graph
+  graph.dataaccess.default_type: FOREIGN_MMAP
+  graph.elevation.provider: pmtiles
+  graph.elevation.pmtiles.location: /data/terrain.pmtiles
+  graph.elevation.pmtiles.zoom: 13
+  graph.elevation.cache_dir: /data/quote-cache
+  custom_models.directory: /app/profiles
+  graph.encoded_values: |
+    foot_access, foot_priority, foot_network, foot_average_speed, foot_road_access,
+    hike_rating, horse_rating, average_slope, ferry_speed, road_class, road_environment,
+    surface, mtb_access, mtb_priority, mtb_average_speed, mtb_network, bike_network,
+    mtb_rating, bike_road_access, get_off_bike, roundabout, osm_way_id
+  profiles:
+    - { name: prudente,      custom_model_files: [foot_base.json, prudente.json] }
+    - { name: escursionista, custom_model_files: [foot_base.json, escursionista.json] }
+    - { name: esperto,       custom_model_files: [foot_base.json, esperto.json] }
+    - { name: alpinista,     custom_model_files: [foot_base.json, alpinista.json] }
+    - { name: mtb,           custom_model_files: [mtb_wm.json] }
+    - { name: prova_escursionista, custom_model_files: [foot_base.json, escursionista.json, shard-prova.json] }
+  profiles_lm: []
+  # la rete di prova e' fatta di pezzi minuscoli: senza, GraphHopper li toglie come
+  # sottoreti isolate (default 200 nodi) e aggancia i punti altrove
+  prepare.min_network_size: 0
+  import.osm.ignored_highways: motorway,trunk
+server:
+  application_connectors:
+    - { type: http, port: 8989, bind_host: 0.0.0.0 }
+  request_log:
+    appenders: []
+  admin_connectors:
+    - { type: http, port: 8990, bind_host: 127.0.0.1 }
+logging:
+  level: WARN
+  loggers:
+    # solo la riga "loaded graph ... nodes:"; il resto di com.graphhopper.http resta a
+    # WARN: MultiExceptionMapper scrive a INFO le coordinate dei punti non agganciati
+    "com.graphhopper.http.GraphHopperManaged": INFO
+  appenders:
+    - type: console

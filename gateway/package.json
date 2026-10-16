@@ -1,0 +1,8 @@
+{
+  "name": "wm-routing-gateway",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "vitest run", "start": "node src/server.js" },
+  "dependencies": { "better-sqlite3": "^11.3.0", "express": "^5.2.1" },
+  "devDependencies": { "playwright": "1.61.1", "supertest": "^7.2.2", "vitest": "^3.2.7" }
+}
