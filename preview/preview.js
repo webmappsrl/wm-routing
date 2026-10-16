@@ -63,7 +63,9 @@ async function routeNew() {
   const r = await fetch(`/v1/${SHARD}/route`, {method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({profile: $('newProfile').value, points: state.points, limits: limits(), alternatives: true})});
   const j = await r.json();
-  if (!r.ok) throw new Error(`nuovo: ${j.stato}${j.suggerimento ? ` (prova ${j.suggerimento})` : ''}`);
+  if (!r.ok) throw new Error(`nuovo: ${j.stato}` +
+    (j.punto !== undefined ? ` al punto ${j.punto + 1}` : '') +
+    (j.suggerimento ? ` (prova il profilo ${j.suggerimento})` : ''));
   return j;
 }
 
@@ -122,8 +124,10 @@ function stats() {
       `<td>${r.unknownShare !== undefined ? Math.round(r.unknownShare * 100) + '% sconosciuto' : ''}</td></tr>`;
   }).join('');
   const nuovo = state.results.nuovo;
+  const off = (nuovo?.offTrailPoints ?? []).map(x => `punto ${x.punto + 1} a ${x.distanceM} m dal sentiero piu' vicino`);
   $('warning').textContent = nuovo
-    ? nuovo.warning + (nuovo.snowWarning ? ' Sopra i 2000 m la percorribilita\' dipende dalla neve.' : '') : '';
+    ? nuovo.warning + (nuovo.snowWarning ? ' Sopra i 2000 m la percorribilita\' dipende dalla neve.' : '')
+      + (off.length ? ' Fuori sentiero: ' + off.join(', ') + '.' : '') : '';
 }
 
 function drawProfile() {

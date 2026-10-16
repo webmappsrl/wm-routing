@@ -103,13 +103,33 @@ it("alternative per mtb: nessun profilo a piedi", async () => {
   expect(calls.map(c => c.profile)).toEqual(['mtb']);
   expect(r.body.alternatives).toEqual([]);
 });
-it('meta agganciata lontano (oltre 50 m): 404 meta_non_raggiungibile con il profilo successivo', async () => {
-  // come la vetta del Monte Serra per prudente: il motore aggancia l'arrivo a 900 m
-  const far = async () => ({ok: true, status: 200, json: {paths: [ghPath({
-    snapped_waypoints: {type: 'MultiPoint', coordinates: [[10, 44], [10.01, 44.008]]}})]}});
-  const r = await request(make(far)).post('/v1/s/route').send(body);
+const snapAt = coords => ghPath({snapped_waypoints: {type: 'MultiPoint', coordinates: coords}});
+const FAR = [[10, 44], [10.01, 44.008]];        // arrivo agganciato a ~900 m
+const NEAR = [[10, 44], [10.0101, 44.0002]];
+
+it('il profilo non arriva dove arriva alpinista: 404 meta_non_raggiungibile con il profilo successivo', async () => {
+  // come la vetta del Monte Serra per prudente: alpinista la raggiunge, il profilo no
+  const engine = async b => ({ok: true, status: 200, json: {paths: [snapAt(b.profile === 'alpinista' ? NEAR : FAR)]}});
+  const cfg = {...config, shards: {...config.shards, s: {...config.shards.s,
+    profiles: {...config.shards.s.profiles, alpinista: 'alpinista'}}},
+    profiles: {...config.profiles, alpinista: {mode: 'foot', version: '1'}}};
+  const route = makeRouteHandler({config: cfg, engine: {route: engine}, waysDb: null, dataStamp: () => ({osm: 'X'}),
+    bbox: [6.65, 35.45, 18.55, 47.05], retry: NO_WAIT});
+  const r = await request(createApp({config: cfg, dataStamp: () => ({}), handlers: {route}})).post('/v1/s/route').send(body);
   expect(r.status).toBe(404);
   expect(r.body).toEqual({stato: 'meta_non_raggiungibile', punto: 1, suggerimento: 'esperto'});
+});
+it('punto lontano da ogni sentiero (anche per alpinista): il percorso si da\' con l\'avviso', async () => {
+  const engine = async () => ({ok: true, status: 200, json: {paths: [snapAt(FAR)]}});
+  const cfg = {...config, shards: {...config.shards, s: {...config.shards.s,
+    profiles: {...config.shards.s.profiles, alpinista: 'alpinista'}}},
+    profiles: {...config.profiles, alpinista: {mode: 'foot', version: '1'}}};
+  const route = makeRouteHandler({config: cfg, engine: {route: engine}, waysDb: null, dataStamp: () => ({osm: 'X'}),
+    bbox: [6.65, 35.45, 18.55, 47.05], retry: NO_WAIT});
+  const r = await request(createApp({config: cfg, dataStamp: () => ({}), handlers: {route}})).post('/v1/s/route').send(body);
+  expect(r.status).toBe(200);
+  expect(r.body.offTrailPoints).toEqual([{punto: 1, distanceM: expect.any(Number)}]);
+  expect(r.body.offTrailPoints[0].distanceM).toBeGreaterThan(800);
 });
 it('aggancio vicino (entro 50 m): il percorso va bene', async () => {
   const near = async () => ({ok: true, status: 200, json: {paths: [ghPath({

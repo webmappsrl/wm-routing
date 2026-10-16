@@ -122,6 +122,17 @@
 
 ## Bug trovati
 
+- **Percorso rifiutato con tutti i profili** (segnalato dal dev con la
+  preview): un punto messo fuori da ogni sentiero (242 m dalla via piu'
+  vicina) faceva rispondere `meta_non_raggiungibile` a ogni profilo. Il
+  controllo confondeva "punto fuori sentiero" con "meta che il profilo non
+  raggiunge". Ora, se un punto e' agganciato a oltre 50 m, il gateway chiede
+  l'aggancio anche ad `alpinista`: se anche lui e' lontano, il percorso si da'
+  con `offTrailPoints` (punto e distanza) e la preview lo dice; solo se
+  `alpinista` aggancia il punto vicino risponde `meta_non_raggiungibile`. Test
+  "punto lontano da ogni sentiero" e "il profilo non arriva dove arriva
+  alpinista". Corretto.
+
 - **Coordinate nei log del motore** (revisione finale): `com.graphhopper.http`
   a INFO comprendeva `MultiExceptionMapper`, che scrive a INFO le coordinate
   dei punti che non si agganciano (un punto in mare dentro il rettangolo).

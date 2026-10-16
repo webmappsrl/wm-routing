@@ -25,10 +25,12 @@ Requisiti: [overview](../features/routing-escursionistico/overview.md).
   `escursionista`; la cella di prova e la preview senza LM
   (`config-cella.yml`). Il gateway (`/v1`) fa autorizzazione, inoltro e
   rientro; tempo a piedi DIN 33466 sui totali.
-- **Meta non raggiungibile**: se il motore aggancia un punto a oltre 50 m da
-  quello chiesto (il profilo non ci arriva), il gateway risponde
-  `meta_non_raggiungibile` con il profilo successivo, invece di restituire un
-  giro verso un altro posto.
+- **Punti lontani dai sentieri**: se il motore aggancia un punto a oltre 50 m
+  da quello chiesto, il gateway lo confronta con l'aggancio di `alpinista`. Se
+  anche `alpinista` lo aggancia lontano, il punto e' fuori dai sentieri e il
+  percorso si da' con `offTrailPoints`; se `alpinista` arriva vicino, il
+  profilo scelto non ci arriva e la risposta e' `meta_non_raggiungibile` con il
+  profilo successivo, invece di un giro verso un altro posto.
 - **Sullo stesso server di wm-tiles**: grafo mappato su file e in sola lettura
   (`engine/run.sh`), import con priorita' di chiusura alta, nessun passo negli
   script di wm-tiles; il sito Caddy sta in `/etc/caddy/siti/routing.caddy`.

@@ -74,6 +74,9 @@ nell'app restano inutilizzati.
 - [ ] Se il servizio risponde `meta_non_raggiungibile` (un punto e' dove il
       profilo non arriva, es. una vetta su sentieri E con `prudente`), l'app
       indica quale punto (`punto`) e propone il profilo suggerito
+- [ ] Se la risposta ha `offTrailPoints` (punti messi fuori dai sentieri,
+      agganciati alla via piu' vicina), l'app lo dice all'utente con la
+      distanza
 - [ ] Il profilo di default e' quello prudente del servizio: i profili che
       aprono EEA e vie ferrate si scelgono esplicitamente
 - [ ] I dettagli per tratto del servizio (difficolta', fondo, segnato,

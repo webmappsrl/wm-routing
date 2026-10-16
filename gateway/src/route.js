@@ -53,6 +53,26 @@ export function makeRouteCore({config, engine, waysDb, dataStamp, retry = {}, mo
     const suggestion = Object.keys(shard.profiles).find(p => shard.profiles[p] === next);
     return suggestion ? {suggerimento: suggestion} : {};
   };
+  // Un punto agganciato a oltre SNAP_MAX_M puo' essere due cose diverse: fuori
+  // da ogni sentiero (un clic su un prato: si aggancia e si avvisa), oppure
+  // dove il profilo non arriva (una vetta su sentieri E con prudente: errore).
+  // Le distingue l'aggancio del profilo piu' permissivo dello shard.
+  async function checkSnapping({shard, engineProfile, mode, points, req, snapped}) {
+    if (!snapped) return [];
+    const dist = points.map((q, i) => (snapped[i] ? haversineM(q, snapped[i]) : 0));
+    const far = dist.map((d, i) => ({punto: i, distanceM: Math.round(d)})).filter(x => x.distanceM > SNAP_MAX_M);
+    if (!far.length) return [];
+    const ref = mode === 'foot' ? shard.profiles.alpinista : undefined;
+    if (ref && ref !== engineProfile) {
+      const {custom_model, ...base} = req;
+      const rr = await withRetry(() => engine.route({...base, profile: ref, details: []}), retry).catch(() => null);
+      const refSnap = rr?.ok ? rr.json.paths?.[0]?.snapped_waypoints?.coordinates : null;
+      const blocked = refSnap && far.find(x => refSnap[x.punto]
+        && haversineM(points[x.punto], refSnap[x.punto]) + SNAP_MAX_M < dist[x.punto]);
+      if (blocked) throw new HttpError(404, 'meta_non_raggiungibile', {punto: blocked.punto, ...nextFor(shard, engineProfile)});
+    }
+    return far;
+  }
   // checkSnap: il rientro lo spegne, perche' li' la distanza dalla via e' il
   // tratto "fuori sentiero" e la gestisce lui
   return async function compute(shard, publicProfile, points, {limits, checkSnap = true} = {}) {
@@ -72,12 +92,10 @@ export function makeRouteCore({config, engine, waysDb, dataStamp, retry = {}, mo
       throw new HttpError(400, 'richiesta_non_valida');
     }
     const p = r.json.paths[0];
-    const snapped = p.snapped_waypoints?.coordinates;
-    if (checkSnap && snapped) {
-      const far = points.findIndex((q, i) => snapped[i] && haversineM(q, snapped[i]) > SNAP_MAX_M);
-      if (far >= 0) throw new HttpError(404, 'meta_non_raggiungibile', {punto: far, ...nextFor(shard, engineProfile)});
-    }
     const mode = config.profiles[engineProfile].mode;
+    const offTrailPoints = checkSnap
+      ? await checkSnapping({shard, engineProfile, mode, points, req, snapped: p.snapped_waypoints?.coordinates})
+      : [];
     const {segments, unknownShare} = summarizeDetails(p, waysDb);
     const maxEle = Math.max(...p.points.coordinates.map(c => c[2] ?? 0));
     return {
@@ -89,6 +107,7 @@ export function makeRouteCore({config, engine, waysDb, dataStamp, retry = {}, mo
         : p.time / 3600000,
       geometry: p.points, snapped: p.snapped_waypoints, segments, unknownShare,
       warning: WARNING, snowWarning: maxEle > SNOW_M && SNOW_MONTHS.has(month()),
+      offTrailPoints,
     };
   };
 }
