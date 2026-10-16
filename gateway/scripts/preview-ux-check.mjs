@@ -264,6 +264,23 @@ check(!!px, 'trovata l\'icona del Monte Serra');
 if (px) {
   await page.mouse.move(px[0], px[1]); await page.waitForTimeout(300);
   check((await txt('#tooltip'))?.includes('Monte Serra'), 'tooltip sul punto di interesse');
+  // il wiki compare gia' nel tooltip, prima di decidere se farne una tappa
+  const hoverWiki = await page.evaluate(async ([x, y]) => {
+    try {
+      const poi = findPoi([x, y]);
+      if (!poi) return false;
+      const list = await (await fetch(`https://osmfeatures.maphub.it/api/v2/features/places/${poi.coord[0]}/${poi.coord[1]}/80`)).json();
+      const hit = list.find(q => q.name === poi.name) ?? list[0];
+      if (!hit) return false;
+      const d = await (await fetch(`https://osmfeatures.maphub.it/api/v2/features/places/${hit.osmfeatures_id}`)).json();
+      return !!(d?.properties?.wikipedia || d?.properties?.enrichments);
+    } catch { return false; }
+  }, px);
+  if (hoverWiki) {
+    const shown = await page.waitForFunction(() => document.querySelector('#tooltip .wiki'), null, {timeout: 20000})
+      .then(() => true, () => false);
+    check(shown, 'foto e riassunto wiki nel tooltip del POI, prima della tappa');
+  }
   await page.mouse.click(px[0], px[1]); await page.waitForTimeout(800);
   check((await txt('#points'))?.includes('Monte Serra'), 'il clic sull\'icona aggiunge la tappa con il nome');
   // se osmfeatures conosce il posto con wiki, la tappa mostra foto/riassunto

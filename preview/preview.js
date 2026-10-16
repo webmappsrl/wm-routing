@@ -696,11 +696,19 @@ map.on('pointermove', e => {
   if (tip.classList.contains('pinned')) return;   // la finestrella appuntata resta: si chiude coi suoi pulsanti o cliccando altrove
   const f = featureAt(e.pixel, 4);
   map.getTargetElement().style.cursor = f ? 'pointer' : '';
+  if (f) delete tip.dataset.poi;
   if (!f) {
     const poi = rejoinOn ? null : findPoi(e.pixel);
     map.getTargetElement().style.cursor = poi ? 'pointer' : '';
-    if (!poi) { tip.style.display = 'none'; return; }
-    tip.innerHTML = `<b>${poiText(poi)}</b>Clicca per usarlo come tappa del giro`;
+    if (!poi) { tip.style.display = 'none'; delete tip.dataset.poi; return; }
+    const key = poi.coord.map(v => v.toFixed(5)).join();
+    if (tip.dataset.poi !== key) {
+      tip.dataset.poi = key;
+      tip.innerHTML = `<b>${poiText(poi)}</b>Clicca per usarlo come tappa del giro<div class="wiki-slot"></div>`;
+      fetchPlaceWiki(poi.coord, poi.name).then(w => {
+        if (w && tip.dataset.poi === key) { const slot = tip.querySelector('.wiki-slot'); if (slot) slot.innerHTML = wikiHtml(w); }
+      });
+    }
     tip.style.display = 'block';
     tip.style.left = `${e.pixel[0] + 14}px`; tip.style.top = `${e.pixel[1] + 14}px`;
     return;
@@ -744,6 +752,13 @@ function pinTip(f, coord) {
     addPointAt(coord, null, seg ? legOf(seg.from) : null);
   });
   tip.querySelector('[data-a=close]').addEventListener('click', closeTip);
+  if (along !== undefined) {
+    const x = state.alongRoute[along];
+    tip.insertAdjacentHTML('beforeend', '<div class="wiki-slot"></div>');
+    fetchPlaceWiki(x.coord, x.name).then(w => {
+      if (w && tip.classList.contains('pinned')) { const slot = tip.querySelector('.wiki-slot'); if (slot) slot.innerHTML = wikiHtml(w); }
+    });
+  }
 }
 function closeTip() {
   const tip = $('tooltip');
@@ -873,15 +888,13 @@ function openCaiDetail(i) {
 // Una tappa presa da un punto della mappa si arricchisce da osmfeatures (places
 // nearby + dettaglio): se il posto ha Wikipedia, foto e due righe sotto la tappa.
 const placeCache = new Map();
-function enrichPoi(poi) {
-  if (!poi || poi.wikiDone) return;
-  poi.wikiDone = true;
-  const key = poi.coord.map(v => v.toFixed(5)).join();
+function fetchPlaceWiki(coord, name) {
+  const key = coord.map(v => v.toFixed(5)).join();
   if (!placeCache.has(key)) {
-    placeCache.set(key, fetch(`${OSMF}/places/${poi.coord[0]}/${poi.coord[1]}/80`)
+    placeCache.set(key, fetch(`${OSMF}/places/${coord[0]}/${coord[1]}/80`)
       .then(r => (r.ok ? r.json() : []))
       .then(list => {
-        const hit = list.find(x => x.name && poi.name && x.name.toLowerCase() === poi.name.toLowerCase()) ?? list[0];
+        const hit = list.find(x => x.name && name && x.name.toLowerCase() === name.toLowerCase()) ?? list[0];
         return hit ? fetch(`${OSMF}/places/${hit.osmfeatures_id}`).then(r => (r.ok ? r.json() : null)) : null;
       })
       .then(j => {
@@ -893,7 +906,12 @@ function enrichPoi(poi) {
       })
       .catch(() => null));
   }
-  placeCache.get(key).then(w => { if (w) { poi.wiki = w; drawPoints(); } });
+  return placeCache.get(key);
+}
+function enrichPoi(poi) {
+  if (!poi || poi.wikiDone) return;
+  poi.wikiDone = true;
+  fetchPlaceWiki(poi.coord, poi.name).then(w => { if (w) { poi.wiki = w; drawPoints(); } });
 }
 
 // Come nelle guide: sorgenti, fontane e rifugi entro 150 m dal tracciato, presi
