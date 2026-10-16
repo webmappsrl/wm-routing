@@ -212,6 +212,14 @@ senza GPU disegna lentamente: i tocchi del controllo aspettano fino a 10 s.
   conteneva tutte le 97.544 tile z13 d'Italia (4,6 GB). Ora prende solo le tile
   che toccano il rettangolo.
 
+- **Sul telefono la vista tornava all'inizio** (16 ottobre 2026, segnalato
+  dall'utente): stesso difetto della preview di wm-tiles (`4180256`). A
+  densita' 3 i canvas per tile dei layer `hybrid` di ol-mapbox-style superano
+  il tetto di Safari su iPhone, che chiude e ricarica la pagina senza errori.
+  Mappa a densita' 1 sui telefoni. In piu', alla ricarica la pagina
+  reinquadrava il percorso sopra la vista scritta nell'indirizzo: ora inquadra
+  solo se l'indirizzo non ha `c`.
+
 ## Decisioni
 
 - **Punteggio del rientro**: tempo di rientro piu' due volte il tempo del

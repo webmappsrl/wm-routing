@@ -12,7 +12,7 @@ const page = await ctx.newPage();
 const errors = [];
 page.on('pageerror', e => errors.push(String(e)));
 
-await page.goto(base + '?p=10.5205,43.7244;10.5555,43.7505&motore=entrambi&c=10.45,43.60&z=12');
+await page.goto(base + '?p=10.5205,43.7244;10.5555,43.7505&motore=entrambi');
 await page.waitForFunction(() => window.__wm?.state?.results?.nuovo && window.__wm.state.results.produzione,
   null, {timeout: 30000}).catch(() => fails.push('i due tracciati non arrivano'));
 await page.waitForTimeout(800);
@@ -21,6 +21,13 @@ const box = sel => page.locator(sel).boundingBox();
 const panelH = async () => (await box('#panel'))?.height ?? 0;
 
 check(((await box('#map'))?.height ?? 0) >= vh * 0.95, 'la mappa occupa tutto lo schermo');
+// a densita' 3 i canvas per tile di ol-mapbox-style superano il tetto di Safari su
+// iPhone, che chiude e ricarica la pagina (la vista torna all'inizio): densita' 1
+const ratio = await page.evaluate(() => {
+  const c = document.querySelector('#map canvas');
+  return c ? c.width / c.getBoundingClientRect().width : 0;
+});
+check(Math.abs(ratio - 1) < 0.01, `mappa disegnata a densita' 1 sul telefono (ora ${ratio.toFixed(2)})`);
 check(await panelH() <= vh * 0.25, 'all\'apertura il pannello e\' chiuso (riga di riepilogo)');
 const mini = await page.textContent('#mini').catch(() => '');
 check(/km/.test(mini ?? '') && /\+\d+ m/.test(mini ?? ''), 'il riepilogo chiuso mostra km e salita');
@@ -124,6 +131,19 @@ check(waiting, 'rientro: mentre calcola la pagina lo dice');
 const shown = await page.waitForFunction(() => document.querySelector('#rejoin-result')?.textContent.trim()
   && document.querySelector('#rejoin-result').offsetParent, null, {timeout: 20000}).then(() => true, () => false);
 check(shown, 'rientro: il risultato compare nella sua scheda');
+
+// una pagina ricaricata (anche da Safari, quando la chiude) riparte dalla vista
+// scritta nell'indirizzo, senza reinquadrare il percorso
+const p2 = await ctx.newPage();
+await p2.goto(base + '?p=10.5205,43.7244;10.5555,43.7505&c=10.60000,43.80000&z=15.0');
+await p2.waitForFunction(() => window.__wm?.state?.results?.nuovo, null, {timeout: 30000}).catch(() => {});
+await p2.waitForTimeout(800);
+const kept = await p2.evaluate(() => {
+  const v = window.__wm.map.getView();
+  const [lon, lat] = ol.proj.toLonLat(v.getCenter());
+  return Math.abs(lon - 10.6) < 1e-3 && Math.abs(lat - 43.8) < 1e-3 && Math.abs(v.getZoom() - 15) < 0.01;
+});
+check(kept, 'riaperta con la vista nell\'indirizzo, la pagina la mantiene');
 
 check(!errors.length, `errori JavaScript: ${errors.join('; ')}`);
 await browser.close();

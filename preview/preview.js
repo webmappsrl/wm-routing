@@ -223,8 +223,15 @@ const state = {
 };
 const routeSource = new ol.source.Vector();
 const routeLayer = new ol.layer.Vector({source: routeSource, zIndex: 10, style: f => f.get('style')});
+// Sul telefono la mappa si disegna a densita' 1. ol-mapbox-style ne fa decine di
+// layer `hybrid`, ognuno con un canvas per tile: a densita' 3 superano dopo pochi
+// spostamenti il tetto che Safari su iPhone concede ai canvas, e la pagina viene
+// chiusa e ricaricata senza errori (la vista torna all'inizio). Stesso difetto e
+// stessa correzione della preview di wm-tiles (4180256).
+const phone = matchMedia('(max-width: 760px), (pointer: coarse)').matches;
 const map = new ol.Map({
   target: 'map',
+  ...(phone ? {pixelRatio: 1} : {}),
   view: new ol.View({
     center: ol.proj.fromLonLat((q.get('c') ?? '10.53,43.74').split(',').map(Number)),
     zoom: Number(q.get('z') ?? 13),
@@ -742,5 +749,7 @@ async function loadMeta() {
 drawLegends();
 setTab(state.points.length >= 2 ? 'percorso' : 'punti');
 setSheet('low');
-loadMeta().then(recompute).then(() => { if (mobile.matches && state.points.length >= 2) fitRoute(); })
+// sul telefono si inquadra il percorso solo se l'indirizzo non dice gia' dove
+// guardare: una pagina ricaricata riparte dalla vista in cui era
+loadMeta().then(recompute).then(() => { if (mobile.matches && state.points.length >= 2 && !q.get('c')) fitRoute(); })
   .catch(showError);
