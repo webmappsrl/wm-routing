@@ -519,6 +519,7 @@ function drawResults() {
   }
   if (produzione) parts.push(card(`Produzione (${PROD_HELP[$('prodProfile').value]})`, '#1f6feb', produzione));
   $('results').innerHTML = parts.length ? parts.join('') : '<p class="help">Metti almeno due punti sulla mappa.</p>';
+  $('export-row').hidden = !nuovo;
   $('results').querySelectorAll('.steep').forEach(el => el.addEventListener('click', () => {
     state.highlight = {from: Number(el.dataset.from), to: Number(el.dataset.to)};
     draw();
@@ -764,8 +765,13 @@ let flashTimer;
 function flash(text) {
   state.flash = text;
   clearTimeout(flashTimer);
-  flashTimer = setTimeout(() => { state.flash = null; drawMini(); }, 4000);
+  flashTimer = setTimeout(() => { state.flash = null; drawMini(); drawFlash(); }, 4000);
   drawMini();
+  drawFlash();
+}
+// sul desktop il riepilogo non c'e': il messaggio ha un riquadro suo
+function drawFlash() {
+  $('flash').textContent = mobile.matches ? '' : state.flash ?? '';
 }
 map.on('singleclick', e => {
   const p = ol.proj.toLonLat(e.coordinate);
@@ -795,6 +801,64 @@ for (const id of ['prodProfile', 'maxRating', 'maxSlope', 'excludeUnknown'])
 $('colorBy').addEventListener('change', () => { syncUrl(); drawLegends(); draw(); });
 for (const id of ['direction', 'progress']) $(id).addEventListener('change', syncUrl);
 $('clear').addEventListener('click', () => { state.points = []; state.poi = []; recompute().catch(showError); });
+// inverti e andata e ritorno: operano sull'elenco dei punti, il resto segue
+$('reverse').addEventListener('click', () => {
+  state.points.reverse(); state.poi.reverse();
+  recompute().catch(showError);
+});
+$('outback').addEventListener('click', () => {
+  if (state.points.length < 2) return;
+  if (state.points.at(-1).join() === state.points[0].join()) return flash('Il giro è già chiuso.');
+  for (let i = state.points.length - 2; i >= 0; i--) {
+    state.points.push(state.points[i]);
+    state.poi.push(state.poi[i]);
+  }
+  recompute().catch(showError);
+});
+
+// --- GPX e condivisione ------------------------------------------------------
+
+// Il GPX si genera dalla geometria gia' in pagina (niente gateway): traccia con
+// le quote e una tappa (wpt) per ogni punto, col nome se viene da un'icona.
+function toGpx() {
+  const r = state.results.nuovo;
+  if (!r) return null;
+  const esc = t => String(t).replace(/[<>&"]/g, ch => ({'<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;'}[ch]));
+  const wpts = state.points.map((p, i) => {
+    const name = state.poi[i] ? state.poi[i].name : `Punto ${i + 1}`;
+    return `  <wpt lon="${p[0].toFixed(6)}" lat="${p[1].toFixed(6)}"><name>${esc(name)}</name></wpt>`;
+  }).join('\n');
+  const pts = r.geometry.coordinates.map(c =>
+    `      <trkpt lon="${c[0].toFixed(6)}" lat="${c[1].toFixed(6)}">${c[2] !== undefined ? `<ele>${c[2].toFixed(1)}</ele>` : ''}</trkpt>`)
+    .join('\n');
+  const name = `wm-routing ${r.profile} ${(r.distanceM / 1000).toFixed(1)} km`;
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="wm-routing preview" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata><name>${esc(name)}</name></metadata>
+${wpts}
+  <trk><name>${esc(name)}</name><trkseg>
+${pts}
+  </trkseg></trk>
+</gpx>
+`;
+}
+$('gpx').addEventListener('click', () => {
+  const gpx = toGpx();
+  if (!gpx) return flash('Calcola prima un percorso con il motore nuovo.');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([gpx], {type: 'application/gpx+xml'}));
+  a.download = `percorso-${$('newProfile').value}-${(state.results.nuovo.distanceM / 1000).toFixed(1)}km.gpx`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+$('share').addEventListener('click', async () => {
+  syncUrl();
+  const url = location.href;
+  try {
+    if (navigator.share && touch.matches) await navigator.share({url});
+    else { await navigator.clipboard.writeText(url); flash('Link copiato: incollalo dove vuoi.'); }
+  } catch { flash('Non riesco a copiare: copia l\'indirizzo dalla barra del browser.'); }
+});
 $('undo').addEventListener('click', () => { state.points.pop(); state.poi.length = state.points.length; recompute().catch(showError); });
 map.on('moveend', syncUrl);
 

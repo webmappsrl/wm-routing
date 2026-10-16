@@ -1,7 +1,9 @@
 // Controllo della preview dal punto di vista di chi la usa: legende, punti
 // numerati, risultati spiegati, errori in italiano, area dei dati.
 // Uso, dalla cartella gateway: node scripts/preview-ux-check.mjs [base]
+import {createRequire} from 'node:module';
 import {chromium} from 'playwright';
+const require = createRequire(import.meta.url);
 const base = process.argv[2] ?? 'http://127.0.0.1:8991/preview/';
 const fails = [];
 const check = (cond, msg) => { if (!cond) fails.push(msg); };
@@ -46,6 +48,34 @@ check(/ripido/i.test((await txt('#results .card'))), 'tratto piu\' ripido in sch
 check(/(\d+ h |\d+ min)/.test((await txt('#points li:nth-child(2)')) ?? ''), 'tempo DIN alla tappa 2 nell\'elenco dei punti');
 const segHead = await txt('#segments thead');
 check(/Segnavia/.test(segHead ?? ''), 'colonna dei segnavia nella tabella');
+
+// GPX: il file scaricato ha traccia con quote e tappe con nome
+const [download] = await Promise.all([
+  page.waitForEvent('download', {timeout: 8000}).catch(() => null),
+  page.locator('#gpx').click({timeout: 3000}).catch(() => fails.push('pulsante GPX assente')),
+]);
+if (!download) fails.push('il GPX non parte');
+else {
+  const gpx = require('node:fs').readFileSync(await download.path(), 'utf8');
+  check(/<gpx/.test(gpx) && /<trkpt[^>]*>\s*<ele>/.test(gpx), 'GPX con traccia e quote');
+  check(/<wpt/.test(gpx), 'GPX con le tappe');
+  check(/\.gpx$/.test(download.suggestedFilename()), 'nome del file .gpx');
+}
+check(await page.locator('#share').isVisible().catch(() => false), 'pulsante per copiare il link');
+
+// inverti il giro e andata e ritorno
+const before = await page.evaluate(() => window.__wm.state.points.map(p => p.join()));
+await page.locator('#reverse').click({timeout: 3000}).catch(() => fails.push('pulsante inverti assente'));
+await page.waitForFunction(f => window.__wm.state.points[0].join() === f, before.at(-1), {timeout: 10000})
+  .then(() => true, () => fails.push('inverti il giro non inverte'));
+await page.waitForFunction(() => window.__wm.state.results.nuovo, null, {timeout: 30000}).catch(() => {});
+await page.locator('#outback').click({timeout: 3000}).catch(() => fails.push('pulsante andata e ritorno assente'));
+const closed = await page.waitForFunction(n => window.__wm.state.points.length === 2 * n - 1
+  && window.__wm.state.points.at(-1).join() === window.__wm.state.points[0].join(), before.length,
+  {timeout: 10000}).then(() => true, () => false);
+check(closed, 'andata e ritorno chiude il giro per la stessa via');
+await page.waitForFunction(() => window.__wm.state.results.nuovo, null, {timeout: 30000}).catch(() => {});
+
 check((await txt('#segments'))?.includes('esperto'), 'tabella dei tratti: profilo usato');
 
 await page.goto(base + '?p=12.0,45.0;12.1,45.1&motore=nuovo&c=12,45&z=12');
