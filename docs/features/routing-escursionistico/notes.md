@@ -254,6 +254,12 @@ GraphHopper Maps e BRouter-web. Aggiunte, ciascuna col suo controllo in
 - Tutte le tecniche sono riportate come direttive in `map-core.md` (vincolo
   dell'utente: riproducibili nell'app).
 
+- **Fontane solo nella preview col percorso** (16 ottobre 2026, scelta
+  dell'utente): le tile non disegnano `drinking_water` (lo stile di wm-tiles
+  segue TGen, che le mostra solo oltre il suo ultimo livello) e resta cosi'.
+  Le fontane si vedono nella preview come pallini di "lungo il giro", quindi
+  solo a percorso calcolato; niente modifica allo stile delle tile.
+
 ## Decisioni
 
 - **Punteggio del rientro**: tempo di rientro piu' due volte il tempo del
