@@ -333,6 +333,7 @@ function draw() {
     }
     if (state.highlight)
       addLine(c.slice(state.highlight.from, state.highlight.to + 1), lineStyle('rgba(255,214,0,0.85)', 12), {highlight: true});
+    drawArrows(c);
   }
   for (const [name, r] of Object.entries(state.results))
     for (const c of r.connectors ?? [])
@@ -561,12 +562,16 @@ function drawProfile() {
   ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
   const W = cv.clientWidth, H = cv.clientHeight, L = 42, B = 18;
   ctx.clearRect(0, 0, W, H);
+  state.profileMap = null;
+  state.profilePaths = null;
   const series = Object.entries(state.results)
-    .map(([name, r]) => ({name, c: r.geometry.coordinates, d: cumulative(r.geometry.coordinates)}));
-  if (!series.length) { $('elevation-axis').textContent = ''; return; }
-  const ele = series.flatMap(s => s.c.map(p => p[2] ?? 0));
+    .map(([name, r]) => ({name, r, c: r.geometry.coordinates, d: cumulative(r.geometry.coordinates)}));
+  if (!series.length) { $('elevation-axis').textContent = ''; $('profile-readout').textContent = ''; return; }
+  const alts = state.results.nuovo?.alternatives ?? [];
+  const altSeries = alts.map(a => ({c: a.geometry.coordinates, d: cumulative(a.geometry.coordinates)}));
+  const ele = [...series, ...altSeries].flatMap(s => s.c.map(p => p[2] ?? 0));
   const lo = Math.floor(Math.min(...ele) / 50) * 50, hi = Math.ceil(Math.max(lo + 50, ...ele) / 50) * 50;
-  const maxD = Math.max(...series.map(s => s.d.at(-1)));
+  const maxD = Math.max(...[...series, ...altSeries].map(s => s.d.at(-1)));
   const x = d => L + (d / maxD) * (W - L - 6), y = e => H - B - ((e - lo) / (hi - lo)) * (H - B - 6);
   ctx.strokeStyle = '#d8dde2'; ctx.fillStyle = '#5f6b76'; ctx.font = '10px system-ui';
   for (const e of [lo, (lo + hi) / 2, hi]) {
@@ -574,17 +579,90 @@ function drawProfile() {
     ctx.fillText(`${Math.round(e)} m`, 2, y(e) + 3);
   }
   for (const f of [0, 0.5, 1]) ctx.fillText(`${(maxD * f / 1000).toFixed(1)} km`, x(maxD * f) - (f === 1 ? 30 : f ? 14 : 0), H - 4);
+  // le alternative in grigio sotto tutto, come GraphHopper Maps
+  for (const a of altSeries) {
+    ctx.strokeStyle = '#b9c2cb'; ctx.lineWidth = 1.5; ctx.beginPath();
+    a.c.forEach((p, i) => (i ? ctx.lineTo(x(a.d[i]), y(p[2] ?? lo)) : ctx.moveTo(x(a.d[i]), y(p[2] ?? lo))));
+    ctx.stroke();
+  }
+  state.profilePaths = {alt: altSeries.length};
+  const by = $('colorBy').value;
   for (const s of series) {
+    if (s.name === 'nuovo' && s.r.segments?.length) {
+      // il tracciato del motore nuovo col colore del criterio scelto, come sulla mappa
+      ctx.lineWidth = 3;
+      for (const seg of s.r.segments) {
+        ctx.strokeStyle = segColor(seg, by); ctx.beginPath();
+        for (let i = seg.from; i <= seg.to && i < s.c.length; i++) {
+          const px = x(s.d[i]), py = y(s.c[i][2] ?? lo);
+          i === seg.from ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+      }
+      continue;
+    }
     ctx.strokeStyle = s.name === 'nuovo' ? '#d0021b' : '#1f6feb'; ctx.lineWidth = 2;
     ctx.setLineDash(s.name === 'nuovo' ? [] : [6, 4]); ctx.beginPath();
     s.c.forEach((p, i) => (i ? ctx.lineTo(x(s.d[i]), y(p[2] ?? lo)) : ctx.moveTo(x(s.d[i]), y(p[2] ?? lo))));
     ctx.stroke(); ctx.setLineDash([]);
   }
-  $('elevation-axis').innerHTML = 'Asse verticale: quota in metri; orizzontale: distanza dalla partenza.<br>' +
+  const nuovo = series.find(s => s.name === 'nuovo');
+  state.profileMap = {L, W, maxD, nuovo: nuovo ? {c: nuovo.c, d: nuovo.d, segments: nuovo.r.segments ?? []} : null};
+  $('elevation-axis').innerHTML = 'Asse verticale: quota in metri; orizzontale: distanza dalla partenza. ' +
+    'Passa sul grafico per vedere il punto sulla mappa.<br>' +
     series.map(s => `<span style="display:inline-flex;align-items:center;gap:6px;margin-right:12px">` +
       `${swatch({color: s.name === 'nuovo' ? '#d0021b' : '#1f6feb', dash: s.name !== 'nuovo'})}` +
-      `${s.name === 'nuovo' ? 'motore nuovo' : 'produzione'}</span>`).join('');
+      `${s.name === 'nuovo' ? 'motore nuovo (col colore della legenda)' : 'produzione'}</span>`).join('') +
+    (altSeries.length ? `<span style="display:inline-flex;align-items:center;gap:6px">${swatch({color: '#b9c2cb'})}alternative</span>` : '');
 }
+
+// Frecce del verso di percorrenza, una ogni ~700 m: su un anello non si capirebbe
+// da che parte si gira, e i tempi di salita e discesa dipendono dal verso.
+function drawArrows(coords) {
+  const cum = cumulative(coords);
+  const step = Math.max(400, cum.at(-1) / 24);
+  for (let d = step / 2; d < cum.at(-1); d += step) {
+    let i = cum.findIndex(v => v >= d);
+    if (i < 1) continue;
+    const [x1, y1] = ol.proj.fromLonLat([coords[i - 1][0], coords[i - 1][1]]);
+    const [x2, y2] = ol.proj.fromLonLat([coords[i][0], coords[i][1]]);
+    const f = new ol.Feature(new ol.geom.Point([(x1 + x2) / 2, (y1 + y2) / 2]));
+    f.set('arrow', true);
+    f.set('style', new ol.style.Style({zIndex: 20, image: new ol.style.RegularShape({
+      points: 3, radius: 6, rotation: Math.atan2(x2 - x1, y2 - y1), rotateWithView: true, angle: 0,
+      fill: new ol.style.Fill({color: '#ffffff'}), stroke: new ol.style.Stroke({color: '#333', width: 1}),
+    })}));
+    routeSource.addFeature(f);
+  }
+}
+
+// --- il profilo si tocca: punto sulla mappa e lettura ------------------------
+
+const profileMarker = new ol.Feature();
+profileMarker.set('profileMarker', true);
+profileMarker.set('style', new ol.style.Style({zIndex: 30, image: new ol.style.Circle({radius: 7,
+  fill: new ol.style.Fill({color: '#ffd600'}), stroke: new ol.style.Stroke({color: '#111', width: 2})})}));
+function profileHover(ev) {
+  const pm = state.profileMap;
+  if (!pm?.nuovo) return;
+  const rect = $('profile').getBoundingClientRect();
+  const d = Math.max(0, Math.min(pm.maxD, (ev.clientX - rect.left - pm.L) / (pm.W - pm.L - 6) * pm.maxD));
+  const {c, d: cum, segments} = pm.nuovo;
+  let i = cum.findIndex(v => v >= d);
+  if (i < 0) i = cum.length - 1;
+  const seg = segments.find(sg => sg.from <= i && i <= sg.to);
+  profileMarker.setGeometry(new ol.geom.Point(ol.proj.fromLonLat([c[i][0], c[i][1]])));
+  if (!routeSource.hasFeature(profileMarker)) routeSource.addFeature(profileMarker);
+  $('profile-readout').textContent = `km ${(cum[i] / 1000).toFixed(1)} · ${Math.round(c[i][2] ?? 0)} m` +
+    (seg ? ` · pendenza ${Math.abs(seg.slope ?? 0)}% · ${diffLabel(seg)}${seg.ref ? ` · segnavia ${seg.ref.replaceAll(';', ', ')}` : ''}` : '');
+}
+function profileLeave() {
+  if (routeSource.hasFeature(profileMarker)) routeSource.removeFeature(profileMarker);
+  $('profile-readout').textContent = '';
+}
+$('profile').addEventListener('pointermove', profileHover);
+$('profile').addEventListener('pointerdown', profileHover);
+$('profile').addEventListener('pointerleave', profileLeave);
 
 // --- dettagli al passaggio del mouse ---------------------------------------
 

@@ -41,6 +41,25 @@ await page.goto(base + '?p=10.54415,43.73178;10.55618,43.74150;10.55765,43.74468
   '10.59110,43.75744&motore=nuovo&profilo=escursionista&c=10.556,43.756&z=14');
 await page.waitForFunction(() => window.__wm?.state?.results?.nuovo, null, {timeout: 30000}).catch(() => fails.push('12 punti: nessun tracciato'));
 check((await txt('#warning'))?.includes('esperto'), 'avviso sui tratti calcolati con un altro profilo');
+// profilo altimetrico interattivo: passandoci sopra compare il punto sulla mappa e la lettura
+{
+  await page.locator('#profile').scrollIntoViewIfNeeded();
+  const pb = await page.locator('#profile').boundingBox();
+  await page.mouse.move(pb.x + pb.width * 0.5, pb.y + pb.height * 0.5);
+  await page.waitForTimeout(300);
+  const read = await txt('#profile-readout');
+  check(/km/.test(read ?? '') && /m\b/.test(read ?? ''), 'lettura del profilo: km e quota');
+  check(await page.evaluate(() => window.__wm.routeSource.getFeatures().some(f => f.get('profileMarker'))),
+    'segnaposto sulla mappa dal profilo');
+  await page.mouse.move(pb.x - 20, pb.y - 20);
+  await page.waitForTimeout(300);
+  check(await page.evaluate(() => !window.__wm.routeSource.getFeatures().some(f => f.get('profileMarker'))),
+    'il segnaposto sparisce uscendo dal profilo');
+  check(await page.evaluate(() => window.__wm.state.profilePaths?.alt >= 0), 'alternative disegnate sul profilo');
+}
+// frecce del verso di percorrenza sul tracciato
+check(await page.evaluate(() => window.__wm.routeSource.getFeatures().filter(f => f.get('arrow')).length > 2),
+  'frecce di direzione sul tracciato');
 check((await txt('#segments'))?.includes('esperto'), 'tabella dei tratti: profilo usato');
 // taglio escursionistico: difficolta' complessiva, quote, tratto piu' ripido, tempi alle tappe, segnavia
 check(/^(T|E|EE|EEA)$/.test((await txt('#results .card .badge'))?.trim() ?? ''), 'distintivo della difficolta\' complessiva');
