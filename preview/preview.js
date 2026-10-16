@@ -363,6 +363,7 @@ function draw() {
   drawProfile();
   updateAlongRoute();
   updateCaiRoutes();
+  enrichBarePoints();
 }
 
 function drawPoints() {
@@ -378,7 +379,7 @@ function drawPoints() {
     `<span class="pt">${state.poi[i] ? poiText(state.poi[i]) : `${p[0].toFixed(5)}, ${p[1].toFixed(5)}`}${eta(i)}</span>` +
     (off.has(i) ? `<span class="off">a ${off.get(i)} m dal sentiero</span>` : '') +
     `<button data-i="${i}" title="Togli questo punto">×</button></div>` +
-    (state.poi[i]?.wiki ? wikiHtml(state.poi[i].wiki, 200) : '') + '</div></li>').join('');
+    (state.poi[i]?.wiki ? wikiHtml(state.poi[i].wiki) : nearHtml(p)) + '</div></li>').join('');
   $('points').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
     state.points.splice(Number(b.dataset.i), 1);
     state.poi.splice(Number(b.dataset.i), 1);
@@ -932,6 +933,34 @@ function enrichPoi(poi) {
   if (!poi || poi.wikiDone) return;
   poi.wikiDone = true;
   fetchPlaceWiki(poi.coord, poi.name).then(w => { if (w) { poi.wiki = w; drawPoints(); } });
+}
+// Un punto arrivato dall'URL e' solo una coppia di coordinate: se a meno di 60 m
+// c'e' un luogo con un nome (la Rocca, una cima), lo si dice sotto il punto, con
+// la scheda wiki quando c'e'. Il punto non viene rinominato: e' un'indicazione.
+const nearCache = {};
+function enrichBarePoints() {
+  state.points.forEach((pt, i) => {
+    if (state.poi[i]) return;
+    const key = pt.map(v => v.toFixed(5)).join();
+    if (key in nearCache) return;
+    nearCache[key] = null;
+    fetch(`${OSMF}/places/${pt[0]}/${pt[1]}/60`)
+      .then(r => (r.ok ? r.json() : []))
+      .then(list => {
+        const hit = list.find(x => x.name);
+        if (!hit) return null;
+        return fetch(`${OSMF}/places/${hit.osmfeatures_id}`).then(r => (r.ok ? r.json() : null))
+          .then(j => fetchWiki(j?.properties?.wikipedia).then(w => ({name: hit.name, kind: KIND_IT[hit.subclass] ?? hit.subclass, wiki: w})));
+      })
+      .then(res => { if (res) { nearCache[key] = res; drawPoints(); } })
+      .catch(() => {});
+  });
+}
+function nearHtml(pt) {
+  const res = nearCache[pt.map(v => v.toFixed(5)).join()];
+  if (!res) return '';
+  return `<div class="near">📍 ${esc(res.name)}${res.kind ? ` · ${esc(res.kind)}` : ''}</div>` +
+    (res.wiki ? wikiHtml(res.wiki) : '');
 }
 
 // Come nelle guide: sorgenti, fontane e rifugi entro 150 m dal tracciato, presi

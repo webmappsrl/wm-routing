@@ -101,6 +101,21 @@ check((await txt('#warning'))?.includes('esperto'), 'avviso sui tratti calcolati
     await page.waitForFunction(() => window.__wm.state.results.nuovo, null, {timeout: 30000}).catch(() => {});
   }
 }
+// un punto arrivato dall'URL come coordinate nude prende nome e wiki dal luogo vicino
+{
+  const p4 = await browser.newPage({viewport: {width: 1300, height: 850}});
+  await p4.goto(base + '?p=10.5865,43.6995;10.5417,43.7079;10.5546,43.7504&motore=nuovo&c=10.565,43.724&z=14');
+  await p4.waitForFunction(() => window.__wm?.state?.results?.nuovo, null, {timeout: 30000}).catch(() => {});
+  const near = await p4.waitForFunction(() => document.querySelectorAll('#points .near').length >= 1, null, {timeout: 25000})
+    .then(() => true, () => false);
+  check(near, 'punto da URL: il luogo vicino compare sotto il punto');
+  check(/Vicopisano|Verruca|Serra/.test(await p4.textContent('#points').catch(() => '')),
+    'punto da URL: il nome e\' quello giusto (Rocca di Vicopisano / Verruca / Serra)');
+  const wikis = await p4.waitForFunction(() => document.querySelectorAll('#points .wiki').length >= 1, null, {timeout: 20000})
+    .then(() => true, () => false);
+  check(wikis, 'punto da URL: scheda wiki sotto il punto');
+  await p4.close();
+}
 // sentieri CAI del giro, da osmfeatures: elenco, scheda, wiki
 {
   const got = await page.waitForFunction(() => window.__wm.state.caiRoutes?.length > 0, null, {timeout: 25000})
@@ -201,7 +216,7 @@ if (inserted) {
   check(where.i > 0 && where.i < where.n - 1, 'il punto cliccato sul tracciato finisce nel mezzo, non in coda');
 }
 await page.waitForFunction(() => window.__wm.state.results.nuovo, null, {timeout: 30000}).catch(() => {});
-const dragFrom = await page.evaluate(() => {
+let dragFrom = await page.evaluate(() => {
   const {map, state} = window.__wm;
   if (!state.results.nuovo) return null;
   const c = state.results.nuovo.geometry.coordinates;
@@ -213,6 +228,16 @@ const dragFrom = await page.evaluate(() => {
   }
   return map.getPixelFromCoordinate(ol.proj.fromLonLat(c[Math.floor(c.length / 4)].slice(0, 2)));
 });
+if (!dragFrom) {
+  // il ricalcolo dell'inserimento puo' essere ancora in volo: si aspetta e si riprova
+  await page.waitForFunction(() => window.__wm.state.results.nuovo, null, {timeout: 60000}).catch(() => {});
+  dragFrom = await page.evaluate(() => {
+    const {map, state} = window.__wm;
+    if (!state.results.nuovo) return null;
+    const c = state.results.nuovo.geometry.coordinates;
+    return map.getPixelFromCoordinate(ol.proj.fromLonLat(c[Math.floor(c.length / 4)].slice(0, 2)));
+  });
+}
 if (!dragFrom) fails.push('trascinamento: nessun tracciato (' + ((await txt('#err')) ?? '') + ')');
 const nPts2 = await page.evaluate(() => window.__wm.state.points.length);
 if (dragFrom) {
