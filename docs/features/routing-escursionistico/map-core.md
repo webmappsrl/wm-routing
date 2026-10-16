@@ -151,7 +151,12 @@ implementazione, in OpenLayers come l'app.
       indicativo, dipende dalle tile in memoria); l'app, che conosce il
       servizio tile, puo' chiedere le tile z14 toccate dalla traccia e avere
       l'elenco completo. Il nome non si pretende: una fontana senza nome e'
-      acqua lo stesso
+      acqua lo stesso. Sulla mappa sono pallini col nome (azzurro acqua, marrone
+      ripari) e un raccordo tratteggiato dal punto del tracciato piu' vicino:
+      si vede dove si lascia il giro. **Il tracciato non cambia mai da solo**
+      (scelta del committente, 16 ottobre 2026): farne una tappa e' un'azione
+      esplicita ("Fanne una tappa" / "tappa"), che inserisce il punto nella
+      tappa giusta col nome del posto
 - [ ] **Arrivo col buio** (solo app, non in preview): ora prevista d'arrivo =
       partenza + tempo DIN; se supera il tramonto (calcolabile sul client),
       avvisare prima di partire
