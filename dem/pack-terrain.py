@@ -4,6 +4,7 @@ riga 168). Stesse quote dell'ombreggiatura, nessun ricampionamento.
 
 Uso: pack-terrain.py <cartella z/x/y.png> <out.pmtiles> <z> <W,S,E,N>
 """
+import math
 import os
 import sys
 
@@ -15,9 +16,22 @@ w, s, e, n = (float(v) for v in sys.argv[4].split(","))
 zdir = os.path.join(src, str(z))
 if not os.path.isdir(zdir):
     sys.exit(f"!! manca il livello {z} in {src}")
+
+
+def tile_xy(lon, lat):
+    k = 1 << z
+    return (int((lon + 180) / 360 * k),
+            int((1 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2 * k))
+
+
+# solo le tile che toccano il rettangolo: la cartella di wm-tiles e' l'Italia intera
+x0, y0 = tile_xy(w, n)
+x1, y1 = tile_xy(e, s)
 tiles = sorted(
     (zxy_to_tileid(z, int(x), int(name[:-4])), os.path.join(zdir, x, name))
-    for x in os.listdir(zdir) for name in os.listdir(os.path.join(zdir, x)) if name.endswith(".png"))
+    for x in os.listdir(zdir) if x.isdigit() and x0 <= int(x) <= x1
+    for name in os.listdir(os.path.join(zdir, x))
+    if name.endswith(".png") and y0 <= int(name[:-4]) <= y1)
 if not tiles:
     sys.exit(f"!! nessuna tile in {zdir}")
 with open(dst, "wb") as f:

@@ -167,6 +167,11 @@
   come il profilo (test "la difficolta' sconosciuta conta solo sui sentieri").
   Corretto.
 
+- **`pack-terrain.py` non ritagliava** (16 ottobre 2026, sul server): il
+  rettangolo finiva solo nell'intestazione e il file della cella di Pisa
+  conteneva tutte le 97.544 tile z13 d'Italia (4,6 GB). Ora prende solo le tile
+  che toccano il rettangolo.
+
 ## Decisioni
 
 - **Punteggio del rientro**: tempo di rientro piu' due volte il tempo del
