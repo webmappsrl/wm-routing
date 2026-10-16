@@ -24,11 +24,15 @@ function lengthM(coords, from, to) {
 export function summarizeDetails(path, waysDb) {
   const d = path.details ?? {};
   const coords = path.points.coordinates;
-  // refs (i segnavia) e' una colonna aggiunta dopo: una tabella laterale di un
-  // grafo costruito prima non ce l'ha, e si continua senza
+  // refs (segnavia) e rel_ids (relazioni, il gancio verso osmfeatures) sono
+  // colonne aggiunte dopo: con una tabella laterale vecchia si continua senza
   let lookup = null;
-  try { lookup = waysDb?.prepare('select cai, sac, origin, long_chain, refs from ways where way_id = ?'); }
-  catch { lookup = waysDb?.prepare('select cai, sac, origin, long_chain from ways where way_id = ?'); }
+  for (const cols of ['cai, sac, origin, long_chain, refs, rel_ids',
+                      'cai, sac, origin, long_chain, refs',
+                      'cai, sac, origin, long_chain']) {
+    try { lookup = waysDb?.prepare(`select ${cols} from ways where way_id = ?`); break; }
+    catch { lookup = null; }
+  }
   const c = cuts(d);
   const segments = [];
   let unknownM = 0, totalM = 0;
@@ -40,7 +44,7 @@ export function summarizeDetails(path, waysDb) {
     const origin = way.origin ?? (rating ? 'sac' : 'none');
     const seg = {
       from, to, difficulty: ratingToCai(rating, origin), origin,
-      sac: way.sac ?? null, longChain: way.long_chain === 1, ref: way.refs ?? null,
+      sac: way.sac ?? null, longChain: way.long_chain === 1, ref: way.refs ?? null, relIds: way.rel_ids ?? null,
       osmWayId,
       surface: valueAt(d.surface, from) ?? null, network: valueAt(d.foot_network, from) ?? null,
       slope: valueAt(d.average_slope, from) ?? null,

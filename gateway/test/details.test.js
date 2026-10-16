@@ -3,7 +3,7 @@ import {summarizeDetails} from '../src/details.js';
 import {ratingToCai} from '../src/difficulty.js';
 
 const rows = {
-  11: {cai: 'EE', sac: 'alpine_hiking', origin: 'cai', long_chain: 0, refs: '00;139'},
+  11: {cai: 'EE', sac: 'alpine_hiking', origin: 'cai', long_chain: 0, refs: '00;139', rel_ids: '9417478;123'},
   12: {cai: null, sac: null, origin: 'none', long_chain: 1},
 };
 const waysDb = {prepare: () => ({get: id => rows[id]})};
@@ -63,14 +63,18 @@ it('espone i segnavia delle relazioni (refs) e null dove mancano', () => {
   };
   const r = summarizeDetails(path, waysDb);
   expect(r.segments[0].ref).toBe('00;139');
+  expect(r.segments[0].relIds).toBe('9417478;123');
   expect(r.segments[1].ref).toBe(null);
+  expect(r.segments[1].relIds).toBe(null);
 });
 it('tabella laterale vecchia, senza la colonna refs: segmenti con ref null', () => {
   const oldDb = {prepare: sql => {
-    if (/refs/.test(sql)) throw new Error('no such column: refs');
+    if (/refs|rel_ids/.test(sql)) throw new Error('no such column');
     return {get: id => ({cai: 'E', sac: null, origin: 'cai', long_chain: 0})};
   }};
   const path = {points: {coordinates: [[10, 44], [10.001, 44]]},
                 details: {osm_way_id: [[0, 1, 11]], hike_rating: [[0, 1, 2]]}};
-  expect(summarizeDetails(path, oldDb).segments[0].ref).toBe(null);
+  const old = summarizeDetails(path, oldDb).segments[0];
+  expect(old.ref).toBe(null);
+  expect(old.relIds).toBe(null);
 });
