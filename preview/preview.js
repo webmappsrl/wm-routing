@@ -357,6 +357,7 @@ function draw() {
   drawResults();
   drawSegments();
   drawProfile();
+  updateAlongRoute();
 }
 
 function drawPoints() {
@@ -761,6 +762,65 @@ function findPoi(pixel) {
           ele: f.get('ele') ?? null, coord: ol.proj.toLonLat([flat[0], flat[1]])};
 }
 const poiText = p => `${p.name}${p.kind ? ' · ' + p.kind : ''}${p.ele ? ' · ' + p.ele + ' m' : ''}`;
+
+// --- acqua e rifugi lungo il giro --------------------------------------------
+
+// Come nelle guide: sorgenti, fontane e rifugi entro 150 m dal tracciato, presi
+// dai punti delle tile gia' caricate (quindi alla scala attuale: e' un elenco
+// indicativo, non un censimento).
+const ALONG_KINDS = new Set(['spring', 'drinking_water', 'fountain', 'water_point',
+                             'alpine_hut', 'wilderness_hut', 'shelter', 'hut']);
+function updateAlongRoute() {
+  const r = state.results.nuovo;
+  state.alongRoute = [];
+  if (r) {
+    const merc = r.geometry.coordinates.map(c => ol.proj.fromLonLat([c[0], c[1]]));
+    const line = new ol.geom.LineString(merc);
+    const cum = cumulative(r.geometry.coordinates);
+    const k = Math.cos(r.geometry.coordinates[0][1] * Math.PI / 180);   // metri veri da EPSG:3857
+    const ext = ol.extent.buffer(line.getExtent(), 300 / k);
+    const best = new Map();
+    for (const layer of map.getAllLayers()) {
+      const src = layer.getSource?.();
+      if (layer === routeLayer || !src?.getFeaturesInExtent) continue;
+      let feats = [];
+      try { feats = src.getFeaturesInExtent(ext); } catch { continue; }
+      for (const f of feats) {
+        if (f.getType?.() !== 'Point' || !POI_LAYERS.includes(f.get('layer')) || !f.get('name')) continue;
+        const kind = f.get('kind') ?? f.get('class');
+        if (!ALONG_KINDS.has(kind)) continue;
+        const flat = f.getFlatCoordinates ? f.getFlatCoordinates() : f.getGeometry().getCoordinates();
+        const closest = line.getClosestPoint([flat[0], flat[1]]);
+        const distM = Math.hypot(closest[0] - flat[0], closest[1] - flat[1]) * k;
+        if (distM > 150) continue;
+        // il km lungo il giro: il vertice piu' vicino al punto di aggancio
+        let bi = 0, bd = Infinity;
+        for (let i = 0; i < merc.length; i++) {
+          const d = Math.hypot(merc[i][0] - closest[0], merc[i][1] - closest[1]);
+          if (d < bd) { bd = d; bi = i; }
+        }
+        const key = `${f.get('name')}|${kind}`;
+        if (!best.has(key) || best.get(key).distM > distM)
+          best.set(key, {name: f.get('name'), kind: KIND_IT[kind] ?? kind, distM: Math.round(distM),
+                         atM: cum[bi], coord: ol.proj.toLonLat([flat[0], flat[1]])});
+      }
+    }
+    state.alongRoute = [...best.values()].sort((a, b) => a.atM - b.atM).slice(0, 12);
+  }
+  const el = $('along');
+  if (!state.alongRoute.length) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="card"><h3>Lungo il giro</h3>
+    <p class="help">Acqua e ripari entro 150 m dal tracciato, fra i punti caricati alla scala attuale.
+    Clicca per vederli; per farne una tappa tocca la loro icona sulla mappa.</p>
+    <ul class="legend">` + state.alongRoute.map((x, i) =>
+      `<li data-i="${i}" style="cursor:pointer">▸ km ${(x.atM / 1000).toFixed(1)} — ${x.name} · ${x.kind}` +
+      `${x.distM > 25 ? ` <small>(a ${x.distM} m)</small>` : ''}</li>`).join('') + '</ul></div>';
+  el.querySelectorAll('li').forEach(li => li.addEventListener('click', () => {
+    const x = state.alongRoute[Number(li.dataset.i)];
+    if (mobile.matches && document.body.dataset.sheet === 'high') setSheet('mid');
+    map.getView().animate({center: ol.proj.fromLonLat(x.coord), zoom: Math.max(map.getView().getZoom(), 15), duration: 300});
+  }));
+}
 
 // --- calcolo ---------------------------------------------------------------
 

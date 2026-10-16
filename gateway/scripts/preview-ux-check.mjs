@@ -57,6 +57,16 @@ check((await txt('#warning'))?.includes('esperto'), 'avviso sui tratti calcolati
     'il segnaposto sparisce uscendo dal profilo');
   check(await page.evaluate(() => window.__wm.state.profilePaths?.alt >= 0), 'alternative disegnate sul profilo');
 }
+// acqua e rifugi lungo il giro, dai punti delle tile
+{
+  const along = await page.waitForFunction(() => Array.isArray(window.__wm.state.alongRoute), null, {timeout: 10000})
+    .then(() => page.evaluate(() => window.__wm.state.alongRoute), () => null);
+  check(along, 'elenco "lungo il giro" calcolato');
+  if (along?.length) {
+    check(await page.locator('#along li').count() === along.length, 'elenco "lungo il giro" visibile');
+    check(/km/.test(await txt('#along')), 'ogni voce dice a che km si trova');
+  }
+}
 // frecce del verso di percorrenza sul tracciato
 check(await page.evaluate(() => window.__wm.routeSource.getFeatures().filter(f => f.get('arrow')).length > 2),
   'frecce di direzione sul tracciato');
