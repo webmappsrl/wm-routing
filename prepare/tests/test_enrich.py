@@ -89,3 +89,10 @@ def test_refs_from_relations(result):
     assert rows[1]["refs"] == "139"
     assert rows[2]["refs"] == "00"      # due relazioni col lo stesso ref: una volta sola
     assert rows[4]["refs"] is None      # nessuna relazione
+
+
+def test_rel_ids_from_relations(result):
+    _, rows, _ = result
+    assert rows[1]["rel_ids"] == "1"
+    assert rows[2]["rel_ids"] == "2;3;4"    # tutte le relazioni escursionistiche, anche senza ref
+    assert rows[4]["rel_ids"] is None

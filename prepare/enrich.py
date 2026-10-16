@@ -61,15 +61,17 @@ class Relations(osmium.SimpleHandler):
         super().__init__()
         self.cai_by_way = defaultdict(list)
         self.refs_by_way = defaultdict(set)    # segnavia (ref) delle relazioni
+        self.rels_by_way = defaultdict(set)    # id delle relazioni: il gancio verso osmfeatures
         self.unknown_cai = Counter()
 
     def relation(self, r):
         if r.tags.get("route") not in ("hiking", "foot"):
             return
         ref = r.tags.get("ref")
-        if ref:
-            for m in r.members:
-                if m.type == "w":
+        for m in r.members:
+            if m.type == "w":
+                self.rels_by_way[m.ref].add(r.id)
+                if ref:
                     self.refs_by_way[m.ref].add(ref)
         cai = r.tags.get("cai_scale")
         if cai is None:
@@ -89,6 +91,7 @@ class Areas(osmium.SimpleHandler):
         super().__init__()
         self.cai_by_way, self.unknown_cai = relations.cai_by_way, relations.unknown_cai
         self.refs_by_way = relations.refs_by_way
+        self.rels_by_way = relations.rels_by_way
         self.glaciers, self.military = [], []
         self.factory = osmium.geom.WKBFactory()
 
@@ -181,8 +184,9 @@ class Classify(osmium.SimpleHandler):
         cai = max(all_cai, key=lambda v: cai_to_rating(v) or 0, default=None)
         self.flags[w.id] = rating | (MILITARY if military else 0) | (FERRATA if origin == "via_ferrata" else 0)
         refs = ";".join(sorted(self.areas.refs_by_way.get(w.id, ()))) or None
+        rel_ids = ";".join(str(i) for i in sorted(self.areas.rels_by_way.get(w.id, ()))) or None
         self.rows.append((w.id, cai, tags.get("sac_scale"), tags.get("horse_scale"), int(glacier), int(military),
-                          tags.get("trail_visibility"), origin, 0, refs))
+                          tags.get("trail_visibility"), origin, 0, refs, rel_ids))
         self.origins[origin] += 1
         self.horse += "horse_scale" in tags
         if len(self.rows) >= 50_000:
@@ -194,7 +198,7 @@ class Classify(osmium.SimpleHandler):
             self.unknown_len[w.id] = (length_m(nodes), ids[0])
 
     def flush(self):
-        self.db.executemany("insert into ways values (?,?,?,?,?,?,?,?,?,?)", self.rows)
+        self.db.executemany("insert into ways values (?,?,?,?,?,?,?,?,?,?,?)", self.rows)
         self.rows = []
 
     def mark_long_chains(self):
@@ -266,7 +270,7 @@ def enrich(src, dst, db_path, tiles_path=None):
     db.execute("drop table if exists ways")
     db.execute("create table ways (way_id integer primary key, cai text, sac text, horse text,"
                " glacier integer, military integer, visibility text, origin text, long_chain integer,"
-               " refs text)")
+               " refs text, rel_ids text)")
     classify = Classify(areas, db)
     classify.apply_file(src, locations=True, idx=NODE_INDEX)
     long_chains = classify.mark_long_chains()
