@@ -6,7 +6,7 @@ import {haversineM} from './rejoin/geometry.js';
 
 const DETAILS = ['osm_way_id', 'hike_rating', 'surface', 'foot_network', 'average_slope', 'road_class',
                  'road_environment', 'get_off_bike'];
-export const WARNING = 'Il servizio non garantisce la percorribilita\' dei sentieri: ' +
+export const WARNING = 'Il servizio non garantisce la percorribilità dei sentieri: ' +
   'verifica sul posto condizioni e segnaletica.';
 const SNOW_M = 2000, SNOW_MONTHS = new Set([11, 12, 1, 2, 3, 4, 5]);
 // Ordine dei profili a piedi: le alternative sono i profili accanto.
@@ -96,7 +96,9 @@ export function makeRouteCore({config, engine, waysDb, dataStamp, retry = {}, mo
     const offTrailPoints = checkSnap
       ? await checkSnapping({shard, engineProfile, mode, points, req, snapped: p.snapped_waypoints?.coordinates})
       : [];
-    const {segments, unknownShare} = summarizeDetails(p, waysDb);
+    const summary = summarizeDetails(p, waysDb);
+    const segments = summary.segments.map(seg => ({...seg, profile: publicProfile}));
+    const {unknownShare} = summary;
     const maxEle = Math.max(...p.points.coordinates.map(c => c[2] ?? 0));
     return {
       profile: publicProfile, profileVersion: config.profiles[engineProfile].version,
@@ -112,8 +114,64 @@ export function makeRouteCore({config, engine, waysDb, dataStamp, retry = {}, mo
   };
 }
 
+// Mai senza percorso: se il giro non riesce con il profilo scelto, lo si
+// calcola tratto per tratto, e il tratto che non riesce passa al profilo
+// successivo (next in profiles.json: escursionista -> esperto -> alpinista ->
+// libero). I tratti calcolati con un altro profilo si dichiarano in
+// fallbackLegs e in ogni segmento (profile).
+export function makeFallbackRoute({config, compute}) {
+  const nextPublic = (shard, publicProfile) => {
+    const next = config.profiles[shard.profiles[publicProfile]]?.next;
+    return Object.keys(shard.profiles).find(p => shard.profiles[p] === next);
+  };
+  const isNoRoute = e => e instanceof HttpError && e.status === 404;
+
+  return async function computeWithFallback(shard, profile, points, {limits} = {}) {
+    try {
+      return {...(await compute(shard, profile, points, {limits})), fallbackLegs: []};
+    } catch (e) {
+      if (!isNoRoute(e) || points.length < 2) throw e;
+    }
+    const legs = await Promise.all(points.slice(1).map(async (b, k) => {
+      for (let p = profile; p; p = nextPublic(shard, p)) {
+        try { return {r: await compute(shard, p, [points[k], b], {limits: p === profile ? limits : undefined}), profile: p}; }
+        catch (e) { if (!isNoRoute(e)) throw e; }
+      }
+      throw new HttpError(404, 'nessun_percorso', {punto: k + 1});
+    }));
+    return mergeLegs(config, shard, profile, legs);
+  };
+}
+
+function mergeLegs(config, shard, profile, legs) {
+  const coords = [], segments = [], off = new Map();
+  let distanceM = 0, ascendM = 0, descendM = 0, timeH = 0, unknownM = 0;
+  legs.forEach(({r}, k) => {
+    const shift = coords.length ? coords.length - 1 : 0;
+    coords.push(...(k ? r.geometry.coordinates.slice(1) : r.geometry.coordinates));
+    for (const seg of r.segments) segments.push({...seg, from: seg.from + shift, to: seg.to + shift});
+    for (const x of r.offTrailPoints ?? []) off.set(k + x.punto, {punto: k + x.punto, distanceM: x.distanceM});
+    distanceM += r.distanceM; ascendM += r.ascendM ?? 0; descendM += r.descendM ?? 0; timeH += r.timeH;
+    unknownM += (r.unknownShare ?? 0) * r.distanceM;
+  });
+  const first = legs[0].r;
+  const mode = config.profiles[shard.profiles[profile]].mode;
+  return {
+    ...first, profile, profileVersion: config.profiles[shard.profiles[profile]].version,
+    distanceM, ascendM, descendM,
+    timeH: mode === 'foot' ? hikingTimeHours({distanceM, ascendM, descendM}) : timeH,
+    geometry: {type: 'LineString', coordinates: coords},
+    snapped: {type: 'MultiPoint', coordinates: legs.flatMap(({r}, k) => (k ? r.snapped?.coordinates?.slice(1) : r.snapped?.coordinates) ?? [])},
+    segments, unknownShare: distanceM ? unknownM / distanceM : 0,
+    snowWarning: legs.some(({r}) => r.snowWarning),
+    offTrailPoints: [...off.values()].sort((a, b) => a.punto - b.punto),
+    fallbackLegs: legs.map(({profile: p}, k) => ({from: k, to: k + 1, profile: p})).filter(x => x.profile !== profile),
+  };
+}
+
 export function makeRouteHandler(deps) {
   const compute = makeRouteCore(deps);
+  const computeWithFallback = makeFallbackRoute({config: deps.config, compute});
   return async (req, res) => {
     const {profile, points, limits, alternatives} = req.body ?? {};
     try {
@@ -121,9 +179,9 @@ export function makeRouteHandler(deps) {
       if (Array.isArray(points) && points.length > (req.shard.maxPoints ?? MAX_POINTS))
         throw new HttpError(400, 'troppi_punti');
       if (!validPoints(points, deps.bbox)) throw new HttpError(400, 'fuori_area');
-      const main = await compute(req.shard, profile, points, {limits});
+      const main = await computeWithFallback(req.shard, profile, points, {limits});
       main.alternatives = [];
-      if (alternatives) {
+      if (alternatives && !main.fallbackLegs.length) {
         const i = LADDER.indexOf(profile);
         // solo i profili a piedi hanno vicini: mtb (e i profili degli shard) nessuno
         const near = i < 0 ? [] : [LADDER[i - 1], LADDER[i + 1]].filter(n => n && req.shard.profiles[n]);

@@ -1,22 +1,41 @@
 {
   "webmapp": {
     "profiles": {
-      "prudente": "prudente", "escursionista": "escursionista",
-      "esperto": "esperto", "alpinista": "alpinista", "mtb": "mtb"
+      "prudente": "prudente",
+      "escursionista": "escursionista",
+      "esperto": "esperto",
+      "alpinista": "alpinista",
+      "mtb": "mtb",
+      "libero": "libero"
     },
-    "origins": ["https://webmapp.it"],
+    "origins": [
+      "https://webmapp.it"
+    ],
     "limits": false,
-    "rate": { "capacity": 60, "perSecond": 1 }
+    "rate": {
+      "capacity": 60,
+      "perSecond": 1
+    }
   },
   "preview": {
     "profiles": {
-      "prudente": "prudente", "escursionista": "escursionista",
-      "esperto": "esperto", "alpinista": "alpinista", "mtb": "mtb",
-      "prova_escursionista": "prova_escursionista"
+      "prudente": "prudente",
+      "escursionista": "escursionista",
+      "esperto": "esperto",
+      "alpinista": "alpinista",
+      "mtb": "mtb",
+      "prova_escursionista": "prova_escursionista",
+      "libero": "libero"
     },
-    "origins": ["http://localhost:8991", "https://routing.maphub.it"],
+    "origins": [
+      "http://localhost:8991",
+      "https://routing.maphub.it"
+    ],
     "limits": true,
     "maxPoints": 25,
-    "rate": { "capacity": 120, "perSecond": 4 }
+    "rate": {
+      "capacity": 120,
+      "perSecond": 4
+    }
   }
 }

@@ -3,7 +3,7 @@ import {corsHeaders} from './cors.js';
 import {createRateLimiter} from './rate-limit.js';
 import {logEvent} from './log.js';
 
-export function createApp({config, dataStamp, handlers = {}}) {
+export function createApp({config, dataStamp, area, handlers = {}}) {
   const app = express();
   app.disable('x-powered-by');
   // dietro Caddy le richieste arrivano dal proxy: senza fidarsi di lui tutti gli
@@ -17,7 +17,7 @@ export function createApp({config, dataStamp, handlers = {}}) {
     Object.entries(config.shards).map(([id, s]) => [id, createRateLimiter(s.rate)]));
 
   app.get('/v1/version', (_req, res) => {
-    res.set('Cache-Control', 'no-cache').json(dataStamp());
+    res.set('Cache-Control', 'no-cache').json(area ? {...dataStamp(), area} : dataStamp());
   });
 
   app.use('/v1/:shard', (req, res, next) => {

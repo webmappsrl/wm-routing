@@ -20,7 +20,7 @@ const rejoin = makeRejoinHandler({config, engine, compute: makeRouteCore(deps),
   bands: {minM: 50, maxM: {foot: 1000, mtb: 2000}}, offsetsM: [0, 500, 1000],
   matchLimits: {meanM: 30, maxM: 100}, bbox: BBOX});
 
-const app = createApp({config, dataStamp, handlers: {route, rejoin}});
+const app = createApp({config, dataStamp, area: BBOX, handlers: {route, rejoin}});
 app.use('/preview', express.static(process.env.WM_PREVIEW ?? new URL('../../preview', import.meta.url).pathname));
 app.listen(Number(process.env.PORT ?? 8991), '0.0.0.0',
   () => console.log(`gateway in ascolto su ${process.env.PORT ?? 8991}`));

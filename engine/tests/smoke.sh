@@ -62,4 +62,11 @@ ok   "via ferrata chiusa in mtb"                "$(route mtb "$B" "$Q")" nessuno
 some "via ferrata aperta all'alpinista"         "$(route alpinista "$B" "$Q")"
 ok   "l'area dello shard chiude la via T, e la EE resta vietata" \
                                                 "$(route prova_escursionista "$A" "$B")" nessuno
+some "libero entra nella catena lunga"            "$(route libero "$A" "$K")"
+some "libero entra nel ghiacciaio"                 "$(route libero "$B" "$D")"
+some "libero passa sulla via ferrata"              "$(route libero "$B" "$Q")"
+some "libero usa il sentiero sconosciuto"          "$(route libero "$B" "$C")"
+ok   "libero rispetta foot=no"                     "$(route libero "$A" "$F")" nessuno
+ok   "libero rispetta la zona militare"            "$(route libero "$A" "$M")" nessuno
+lt   "libero prende la via breve EE"               "$(route libero "$A" "$B")" 1000
 exit $fail

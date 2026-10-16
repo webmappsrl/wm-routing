@@ -36,7 +36,8 @@
       "foot_base.json",
       "alpinista.json"
     ],
-    "sha256": "56b6ec22199d7623dd8d1cdd2716721aa9f10ff44b4d61aee20382d7c435c343"
+    "sha256": "56b6ec22199d7623dd8d1cdd2716721aa9f10ff44b4d61aee20382d7c435c343",
+    "next": "libero"
   },
   "mtb": {
     "mode": "mtb",
@@ -44,7 +45,8 @@
     "files": [
       "mtb_wm.json"
     ],
-    "sha256": "0c553f5a38d0c6c9d4b8a48e5e5dd84567eab48e4bfd14ae4db741cc046af3a7"
+    "sha256": "0c553f5a38d0c6c9d4b8a48e5e5dd84567eab48e4bfd14ae4db741cc046af3a7",
+    "next": "libero"
   },
   "prova_escursionista": {
     "mode": "foot",
@@ -54,6 +56,15 @@
       "escursionista.json",
       "shard-prova.json"
     ],
-    "sha256": "18c94dc34592a5a5f4bf71122289cc14b6321141711f0e34dbc0648a051b9882"
+    "sha256": "18c94dc34592a5a5f4bf71122289cc14b6321141711f0e34dbc0648a051b9882",
+    "next": "esperto"
+  },
+  "libero": {
+    "mode": "foot",
+    "version": "1",
+    "files": [
+      "libero.json"
+    ],
+    "sha256": "2af65b4e0e70e835d3e87d5823c8fd52c9a3ecae9bf0c0d920e9516dec647645"
   }
 }

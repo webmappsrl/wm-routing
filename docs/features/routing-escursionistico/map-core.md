@@ -74,6 +74,12 @@ nell'app restano inutilizzati.
 - [ ] Se il servizio risponde `meta_non_raggiungibile` (un punto e' dove il
       profilo non arriva, es. una vetta su sentieri E con `prudente`), l'app
       indica quale punto (`punto`) e propone il profilo suggerito
+- [ ] Se la risposta ha `fallbackLegs` (tratti calcolati con un profilo piu'
+      permissivo di quello scelto, perche' con quello non si arriva), l'app li
+      mostra distinti sulla mappa e lo dice prima di salvare la traccia: "fra il
+      punto 8 e il 9 il percorso contiene tratti oltre il tuo profilo"
+- [ ] Il profilo `libero` (qualsiasi via a piedi) si propone solo come scelta
+      esplicita, con un avviso: comprende vie ferrate e ghiacciai
 - [ ] Se la risposta ha `offTrailPoints` (punti messi fuori dai sentieri,
       agganciati alla via piu' vicina), l'app lo dice all'utente con la
       distanza

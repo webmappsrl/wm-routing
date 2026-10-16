@@ -42,3 +42,7 @@ it('si fida del proxy anche quando arriva dal bridge di Docker (Caddy -> contain
   expect(trust('172.18.0.1', 0)).toBe(true);     // gateway del bridge Docker
   expect(trust('203.0.113.5', 0)).toBe(false);   // un indirizzo pubblico no
 });
+it("/v1/version dice anche l'area coperta dai dati, per disegnarla nella preview", async () => {
+  const a = createApp({config, area: [10, 43, 11, 44], dataStamp: () => ({osm: 'X'})});
+  expect((await request(a).get('/v1/version')).body).toEqual({osm: 'X', area: [10, 43, 11, 44]});
+});

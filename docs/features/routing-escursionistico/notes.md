@@ -174,6 +174,27 @@
   via e' il tratto "fuori sentiero". Provato: `prudente` da Calci al Monte Serra
   ora risponde cosi' e suggerisce `escursionista`; i 30 percorsi di prova non
   cambiano.
+- **Mai senza percorso** (richiesta del dev, 16 ottobre 2026): se il giro non
+  riesce con il profilo scelto, il gateway lo calcola tratto per tratto (da un
+  punto al successivo) e il tratto che non riesce passa al profilo successivo
+  (`next` in `profiles.json`: escursionista -> esperto -> alpinista -> libero;
+  prova_escursionista -> esperto; mtb -> libero). La risposta dichiara
+  `fallbackLegs` e ogni segmento porta il suo `profile`. Sul caso dei 12 punti
+  del Monte Pisano: escursionista 24,7 km con i tratti 8-9 e 9-10 calcolati con
+  esperto; prima rispondeva `meta_non_raggiungibile`. Resta un 404 solo se un
+  tratto non riesce nemmeno con `libero` (rete scollegata).
+- **Profilo `libero`** (richiesta del dev): qualsiasi via percorribile a piedi
+  per legge (`foot_access`), di qualunque difficolta', vie ferrate e ghiacciai
+  compresi, sentieri sconosciuti senza penalita', velocita' uguale ovunque (la
+  via piu' corta). 7 controlli nuovi nello smoke test (28 in tutto).
+- **Preview spiegata** (richiesta del dev): sezioni numerate con una riga di
+  aiuto, legende delle linee e dei colori (difficolta', segnato, fondo,
+  pendenza, origine del dato), punti numerati e rimovibili, descrizione di
+  motore e profilo, schede dei risultati con riepilogo per difficolta' e per
+  origine, tabella dei tratti cliccabile (raggruppati per difficolta', origine,
+  tipo di via, segnaletica e profilo), tooltip in italiano, assi del profilo
+  altimetrico, errori in italiano, area dei dati come riquadro rosso
+  (`/v1/version` ora porta `area`). Controllo: `gateway/scripts/preview-ux-check.mjs`.
 - **Pendenza come preferenza** (scelta del dev, 16 ottobre 2026): oltre
   `max_slope` il tratto costa x0,3 invece di essere escluso, come chiede
   l'overview; il piano l'aveva reso un divieto. Profili a piedi alla versione 2.

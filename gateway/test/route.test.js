@@ -33,7 +33,7 @@ it('risposta completa, con il tempo DIN e senza il time del motore', async () =>
   expect(r.body).toMatchObject({profile: 'escursionista', profileVersion: '2', data: {osm: 'X'},
                                 distanceM: 1000, ascendM: 100});
   expect(r.body.timeH).toBeCloseTo(0.4583, 3);   // max(0,25; 0,333) + 0,25/2
-  expect(r.body.warning).toMatch(/percorribilita/);
+  expect(r.body.warning).toMatch(/percorribilità/);
   expect(r.body.snowWarning).toBe(false);
   expect(JSON.stringify(r.body)).not.toContain('900000');
 });
@@ -56,11 +56,11 @@ it('punti fuori area o invertiti (lat,lon): 400 prima del motore', async () => {
   expect(r.body.stato).toBe('fuori_area');
   expect(calls).toHaveLength(0);
 });
-it('nessun collegamento: 404 con il profilo successivo suggerito', async () => {
+it('nessun collegamento con nessun profilo: 404 con il tratto che non si fa', async () => {
   const r = await request(make(async () => ({ok: false, status: 400,
     json: {message: 'Connection between locations not found'}}))).post('/v1/s/route').send(body);
   expect(r.status).toBe(404);
-  expect(r.body).toEqual({stato: 'nessun_percorso', suggerimento: 'esperto'});
+  expect(r.body).toEqual({stato: 'nessun_percorso', punto: 1});
 });
 it('motore spento oltre la coda: 503 riprova', async () => {
   const r = await request(make(async () => { throw new Error('ECONNREFUSED'); }))
@@ -107,7 +107,7 @@ const snapAt = coords => ghPath({snapped_waypoints: {type: 'MultiPoint', coordin
 const FAR = [[10, 44], [10.01, 44.008]];        // arrivo agganciato a ~900 m
 const NEAR = [[10, 44], [10.0101, 44.0002]];
 
-it('il profilo non arriva dove arriva alpinista: 404 meta_non_raggiungibile con il profilo successivo', async () => {
+it('il profilo non arriva dove arriva alpinista: il tratto si calcola con alpinista e si dice', async () => {
   // come la vetta del Monte Serra per prudente: alpinista la raggiunge, il profilo no
   const engine = async b => ({ok: true, status: 200, json: {paths: [snapAt(b.profile === 'alpinista' ? NEAR : FAR)]}});
   const cfg = {...config, shards: {...config.shards, s: {...config.shards.s,
@@ -116,8 +116,9 @@ it('il profilo non arriva dove arriva alpinista: 404 meta_non_raggiungibile con 
   const route = makeRouteHandler({config: cfg, engine: {route: engine}, waysDb: null, dataStamp: () => ({osm: 'X'}),
     bbox: [6.65, 35.45, 18.55, 47.05], retry: NO_WAIT});
   const r = await request(createApp({config: cfg, dataStamp: () => ({}), handlers: {route}})).post('/v1/s/route').send(body);
-  expect(r.status).toBe(404);
-  expect(r.body).toEqual({stato: 'meta_non_raggiungibile', punto: 1, suggerimento: 'esperto'});
+  expect(r.status).toBe(200);
+  expect(r.body.profile).toBe('escursionista');
+  expect(r.body.fallbackLegs).toEqual([{from: 0, to: 1, profile: 'alpinista'}]);
 });
 it('punto lontano da ogni sentiero (anche per alpinista): il percorso si da\' con l\'avviso', async () => {
   const engine = async () => ({ok: true, status: 200, json: {paths: [snapAt(FAR)]}});

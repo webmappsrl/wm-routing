@@ -8,45 +8,181 @@
   <script src="https://cdn.jsdelivr.net/npm/ol@7.3.0/dist/ol.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/ol-mapbox-style@11.0.0/dist/olms.js"></script>
   <style>
-    html, body { margin: 0; height: 100%; font: 14px system-ui, sans-serif; background: #fff; }
-    #map { position: absolute; inset: 0 320px 0 0; }
-    #panel { position: absolute; top: 0; right: 0; bottom: 0; width: 320px; overflow: auto;
-             padding: 12px; box-sizing: border-box; border-left: 1px solid #ccc; background: #fff; }
-    #panel label { display: block; margin: 6px 0; }
-    #profile { width: 100%; height: 120px; }
-    #err { color: #b00; white-space: pre-wrap; }
-    #stamp { color: #555; font-size: 12px; }
-    .stats { width: 100%; font-size: 12px; border-collapse: collapse; }
-    .stats td { padding: 2px 4px; vertical-align: top; }
-    @media (max-width: 700px) { #map { inset: 0 0 45% 0; } #panel { top: 55%; width: 100%; } }
+    :root {
+      --bg: #ffffff; --fg: #1d2125; --muted: #5f6b76; --line: #d8dde2; --soft: #f3f5f7;
+      --warn-bg: #fff6e0; --warn-fg: #6b4a00; --err-bg: #fdecec; --err-fg: #9b1c1c; --panel: 380px;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+                 color: var(--fg); background: var(--bg); }
+    #map { position: absolute; inset: 0 var(--panel) 0 0; }
+    #panel { position: absolute; top: 0; right: 0; bottom: 0; width: var(--panel); overflow: auto;
+             border-left: 1px solid var(--line); background: var(--bg); }
+    header { padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
+    header h1 { font-size: 17px; margin: 0 0 4px; }
+    header p { margin: 0; color: var(--muted); font-size: 13px; }
+    #stamp { margin-top: 6px; font-size: 12px; color: var(--muted); }
+    section { padding: 12px 16px; border-bottom: 1px solid var(--line); }
+    section h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; margin: 0 0 4px;
+                 display: flex; align-items: center; gap: 8px; }
+    section h2 .n { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%;
+                    background: var(--fg); color: #fff; font-size: 11px; }
+    .help { color: var(--muted); font-size: 12.5px; margin: 0 0 8px; }
+    label { display: block; margin: 6px 0; }
+    select, input[type=number] { width: 100%; padding: 5px 6px; font: inherit; border: 1px solid var(--line);
+                                 border-radius: 6px; background: #fff; }
+    .row { display: flex; gap: 8px; }
+    .row > * { flex: 1; }
+    .radios label { display: flex; gap: 8px; align-items: flex-start; margin: 4px 0; }
+    .radios small { display: block; color: var(--muted); }
+    button { font: inherit; padding: 5px 10px; border: 1px solid var(--line); border-radius: 6px;
+             background: var(--soft); cursor: pointer; }
+    button:hover { background: #e7ebef; }
+    button.on { background: #00c853; border-color: #00a844; color: #fff; }
+    #points { list-style: none; margin: 6px 0; padding: 0; }
+    #points li { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 13px; }
+    #points .num { width: 20px; height: 20px; border-radius: 50%; background: #111; color: #fff; display: grid;
+                   place-items: center; font-size: 11px; flex: none; }
+    #points .off { color: var(--warn-fg); font-size: 12px; }
+    #points li button { margin-left: auto; padding: 0 7px; }
+    .legend { list-style: none; margin: 4px 0 0; padding: 0; }
+    .legend li { display: flex; align-items: center; gap: 8px; margin: 3px 0; font-size: 12.5px; }
+    .swatch { width: 28px; height: 0; border-top: 5px solid; flex: none; }
+    .swatch.dash { border-top-style: dashed; border-top-width: 3px; }
+    .swatch.dot { width: 14px; height: 14px; border: 0; border-radius: 50%; }
+    .card { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin: 8px 0; }
+    .card h3 { margin: 0 0 6px; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+    .card dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 0; font-size: 13px; }
+    .card dt { color: var(--muted); }
+    .card dd { margin: 0; font-variant-numeric: tabular-nums; }
+    .card .alt { font-size: 12.5px; margin-top: 6px; color: var(--muted); }
+    .box { border-radius: 6px; padding: 8px 10px; margin: 8px 0; font-size: 12.5px; }
+    #warning { background: var(--warn-bg); color: var(--warn-fg); }
+    #warning:empty, #err:empty { display: none; }
+    #err { background: var(--err-bg); color: var(--err-fg); white-space: pre-wrap; }
+    #profile { width: 100%; height: 150px; display: block; }
+    #segments-wrap { max-height: 320px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; margin-top: 6px; }
+    #segments { border-collapse: collapse; width: 100%; font-size: 11.5px; }
+    #segments th { position: sticky; top: 0; background: var(--soft); text-align: left; font-weight: 600;
+                   padding: 4px 5px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    #segments td { padding: 3px 5px; border-bottom: 1px solid #eef1f3; white-space: nowrap; }
+    #segments tr { cursor: pointer; }
+    #segments tbody tr:hover, #segments tr.sel { background: #fff3c4; }
+    #segments .fb td { background: #f6efff; }
+    .tag { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+    #tooltip { position: absolute; pointer-events: none; background: rgba(20,24,28,.92); color: #fff;
+               padding: 6px 8px; border-radius: 6px; font-size: 12px; max-width: 260px; display: none; z-index: 5; }
+    #tooltip b { display: block; margin-bottom: 2px; }
+    details summary { cursor: pointer; color: var(--muted); font-size: 12.5px; margin-top: 4px; }
+    @media (max-width: 760px) {
+      :root { --panel: 100%; }
+      #map { inset: 0 0 50% 0; }
+      #panel { top: 50%; width: 100%; border-left: 0; border-top: 1px solid var(--line); }
+    }
   </style>
 </head>
 <body>
   <div id="map"></div>
+  <div id="tooltip"></div>
   <div id="panel">
-    <div id="stamp"></div>
-    <label>Motore
-      <select id="engine"><option value="nuovo">nuovo</option><option value="produzione">produzione</option>
-        <option value="entrambi">entrambi</option></select></label>
-    <label>Profilo nuovo <select id="newProfile"></select></label>
-    <label>Profilo produzione <select id="prodProfile"><option>hike</option><option>foot</option><option>bike</option></select></label>
-    <fieldset><legend>Limiti di prova (solo motore nuovo)</legend>
-      <label>Difficolta' massima <select id="maxRating"><option value="">del profilo</option>
-        <option value="1">T</option><option value="2">E</option><option value="3">EE</option><option value="4">EEA</option></select></label>
-      <label>Pendenza massima % <input id="maxSlope" type="number" min="0" max="100" placeholder="del profilo"></label>
-      <label><input id="excludeUnknown" type="checkbox"> escludi difficolta' sconosciuta</label>
-    </fieldset>
-    <label>Colora per <select id="colorBy"><option value="difficolta">difficolta'</option>
-      <option value="fondo">fondo</option><option value="segnato">segnato</option><option value="pendenza">pendenza</option></select></label>
-    <label><input id="rejoinMode" type="checkbox"> simula rientro (clic = posizione fuori traccia)</label>
-    <label>Verso del rientro <select id="direction"><option value="forward">avanti</option>
-      <option value="backward">indietro</option><option value="nearest">piu' vicino</option></select></label>
-    <label>Metri gia' percorsi <input id="progress" type="number" min="0" value="0"></label>
-    <button id="clear">Cancella punti</button>
-    <table class="stats" id="stats"></table>
-    <canvas id="profile"></canvas>
-    <p id="warning"></p>
-    <div id="err"></div>
+    <header>
+      <h1>Routing a confronto</h1>
+      <p>Il motore nuovo (wm-routing) e il GraphHopper di produzione sugli stessi punti, con lo sfondo delle
+         tile di wm-tiles.</p>
+      <div id="stamp"></div>
+    </header>
+
+    <section>
+      <h2><span class="n">1</span>Punti</h2>
+      <p class="help">Clicca sulla mappa per aggiungere i punti del giro, in ordine: servono almeno due punti.
+        Un punto lontano dai sentieri viene agganciato al più vicino e segnalato. Il riquadro rosso è l'area
+        coperta dai dati: fuori, il motore nuovo non risponde.</p>
+      <ul id="points"></ul>
+      <div class="row"><button id="undo">Togli l'ultimo</button><button id="clear">Cancella tutti</button></div>
+    </section>
+
+    <section>
+      <h2><span class="n">2</span>Motore</h2>
+      <div class="radios">
+        <label><input type="radio" name="engine" value="nuovo"><span>Nuovo<small>wm-routing: profili CAI,
+          dati e quote di wm-tiles</small></span></label>
+        <label><input type="radio" name="engine" value="produzione"><span>Produzione<small>il GraphHopper
+          usato oggi dalle app (graphhopper.webmapp.it)</small></span></label>
+        <label><input type="radio" name="engine" value="entrambi" checked><span>Entrambi<small>sovrapposti,
+          per confrontarli</small></span></label>
+      </div>
+      <p class="help" id="engine-help"></p>
+    </section>
+
+    <section>
+      <h2><span class="n">3</span>Profilo</h2>
+      <div class="row">
+        <label>Motore nuovo <select id="newProfile"></select></label>
+        <label>Produzione <select id="prodProfile">
+          <option value="hike">hike</option><option value="foot">foot</option><option value="bike">bike</option>
+        </select></label>
+      </div>
+      <p class="help" id="profile-help"></p>
+      <details>
+        <summary>Limiti di prova (solo motore nuovo)</summary>
+        <p class="help">Servono a provare una variante prima di farne un profilo. Nell'app non ci sono: l'utente
+          sceglie solo il profilo.</p>
+        <label>Difficoltà massima <select id="maxRating"><option value="">quella del profilo</option>
+          <option value="1">T - turistico</option><option value="2">E - escursionistico</option>
+          <option value="3">EE - per escursionisti esperti</option><option value="4">EEA - con attrezzatura</option>
+        </select></label>
+        <label>Pendenza oltre cui penalizzare (%) <input id="maxSlope" type="number" min="0" max="100"
+          placeholder="quella del profilo"></label>
+        <label><input id="excludeUnknown" type="checkbox"> Escludi i sentieri di difficoltà sconosciuta</label>
+      </details>
+    </section>
+
+    <section>
+      <h2><span class="n">4</span>Legenda</h2>
+      <p class="help">Linee sulla mappa:</p>
+      <ul class="legend" id="legend-lines"></ul>
+      <label>Colora il motore nuovo per <select id="colorBy">
+        <option value="difficolta">difficoltà (scala CAI)</option>
+        <option value="segnato">sentiero segnato o no</option>
+        <option value="fondo">fondo</option>
+        <option value="pendenza">pendenza</option>
+        <option value="origine">origine del dato di difficoltà</option>
+      </select></label>
+      <ul class="legend" id="legend-colors"></ul>
+      <p class="help">Passa con il mouse su un tratto per vederne i dettagli.</p>
+    </section>
+
+    <section>
+      <h2><span class="n">5</span>Risultati</h2>
+      <div id="results"><p class="help">Metti almeno due punti sulla mappa.</p></div>
+      <div id="warning" class="box"></div>
+      <div id="err" class="box"></div>
+      <p class="help" style="margin:10px 0 2px"><b>Tratti del motore nuovo</b>: una riga per tratto con le
+        stesse caratteristiche. Clicca una riga per vederlo sulla mappa. In viola i tratti calcolati con un
+        profilo più permissivo di quello scelto.</p>
+      <div id="segments-wrap"><table id="segments"></table></div>
+      <p class="help" style="margin:10px 0 2px">Profilo altimetrico: quota lungo il percorso</p>
+      <canvas id="profile"></canvas>
+      <div id="elevation-axis" class="help"></div>
+    </section>
+
+    <section>
+      <h2><span class="n">6</span>Rientro sulla traccia</h2>
+      <p class="help">Simula chi segue il tracciato del motore nuovo e se ne allontana: attiva la simulazione,
+        poi clicca dove si trova la persona. Il rientro scatta fra 50 m e 1 km dalla traccia (2 km in MTB).</p>
+      <button id="rejoinMode">Attiva la simulazione</button>
+      <div class="row">
+        <label>Verso <select id="direction">
+          <option value="forward">avanti: proseguire il giro</option>
+          <option value="backward">indietro: verso la partenza</option>
+          <option value="nearest">il più vicino</option>
+        </select></label>
+        <label>Metri già percorsi <input id="progress" type="number" min="0" value="0"></label>
+      </div>
+      <p class="help">I metri già percorsi dicono a che punto del giro è arrivata la persona: sulle andate e
+        ritorno lo stesso posto corrisponde a due punti diversi della traccia.</p>
+      <div id="rejoin-result" class="help"></div>
+    </section>
   </div>
   <script src="preview.js"></script>
 </body>

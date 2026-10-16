@@ -27,6 +27,7 @@ graphhopper:
     - { name: esperto,       custom_model_files: [foot_base.json, esperto.json] }
     - { name: alpinista,     custom_model_files: [foot_base.json, alpinista.json] }
     - { name: mtb,           custom_model_files: [mtb_wm.json] }
+    - { name: libero,        custom_model_files: [libero.json] }
     - { name: prova_escursionista, custom_model_files: [foot_base.json, escursionista.json, shard-prova.json] }
   profiles_lm:
     - profile: escursionista

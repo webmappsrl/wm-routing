@@ -25,6 +25,11 @@ Requisiti: [overview](../features/routing-escursionistico/overview.md).
   `escursionista`; la cella di prova e la preview senza LM
   (`config-cella.yml`). Il gateway (`/v1`) fa autorizzazione, inoltro e
   rientro; tempo a piedi DIN 33466 sui totali.
+- **Mai senza percorso**: se il giro non riesce con il profilo scelto, si
+  calcola tratto per tratto e il tratto che non riesce passa al profilo
+  successivo (`next`), fino a `libero` (qualsiasi via percorribile a piedi per
+  legge); i tratti di ripiego sono dichiarati (`fallbackLegs`, `profile` di
+  ogni segmento).
 - **Punti lontani dai sentieri**: se il motore aggancia un punto a oltre 50 m
   da quello chiesto, il gateway lo confronta con l'aggancio di `alpinista`. Se
   anche `alpinista` lo aggancia lontano, il punto e' fuori dai sentieri e il
