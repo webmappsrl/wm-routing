@@ -45,6 +45,27 @@ await page.goto(base + '?p=12.0,45.0;12.1,45.1&motore=nuovo&c=12,45&z=12');
 await page.waitForFunction(() => document.querySelector('#err')?.textContent.trim(), null, {timeout: 15000}).catch(() => {});
 check((await txt('#err'))?.includes('fuori dall\'area'), 'errore "fuori area" spiegato in italiano');
 
+// punti di interesse delle tile: un clic sull'icona della cima la usa come tappa
+await page.goto(base + '?c=10.5555,43.7505&z=15&motore=nuovo');
+await page.waitForTimeout(7000);
+const px = await page.evaluate(() => {
+  const m = window.__wm.map;
+  for (let dx = -300; dx <= 300; dx += 4) for (let dy = -250; dy <= 250; dy += 4) {
+    const p = [m.getSize()[0] / 2 + dx, m.getSize()[1] / 2 + dy];
+    let hit = false;
+    m.forEachFeatureAtPixel(p, f => { if (f.get('name') === 'Monte Serra' && f.get('layer') === 'osmpoi') hit = true; });
+    if (hit) return p;
+  }
+  return null;
+});
+check(!!px, 'trovata l\'icona del Monte Serra');
+if (px) {
+  await page.mouse.move(px[0], px[1]); await page.waitForTimeout(300);
+  check((await txt('#tooltip'))?.includes('Monte Serra'), 'tooltip sul punto di interesse');
+  await page.mouse.click(px[0], px[1]); await page.waitForTimeout(800);
+  check((await txt('#points'))?.includes('Monte Serra'), 'il clic sull\'icona aggiunge la tappa con il nome');
+}
+
 await browser.close();
 if (errors.length) fails.push('errori JavaScript: ' + errors.join(' | '));
 if (fails.length) { console.error('!! ' + fails.join('\n!! ')); process.exit(1); }

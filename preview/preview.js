@@ -131,6 +131,7 @@ function drawLegends() {
 
 const state = {
   points: (q.get('p') ?? '').split(';').filter(Boolean).map(s => s.split(',').map(Number)),
+  poi: [],                       // per ogni punto, il punto di interesse delle tile da cui viene (o null)
   results: {},
   offTrail: [],
 };
@@ -261,11 +262,12 @@ function draw() {
 function drawPoints() {
   const off = new Map(state.offTrail.map(x => [x.punto, x.distanceM]));
   $('points').innerHTML = state.points.map((p, i) =>
-    `<li><span class="num">${i + 1}</span>${p[0].toFixed(5)}, ${p[1].toFixed(5)}` +
+    `<li><span class="num">${i + 1}</span>${state.poi[i] ? poiText(state.poi[i]) : `${p[0].toFixed(5)}, ${p[1].toFixed(5)}`}` +
     (off.has(i) ? ` <span class="off">a ${off.get(i)} m dal sentiero</span>` : '') +
     `<button data-i="${i}" title="Togli questo punto">×</button></li>`).join('');
   $('points').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
     state.points.splice(Number(b.dataset.i), 1);
+    state.poi.splice(Number(b.dataset.i), 1);
     recompute().catch(showError);
   }));
 }
@@ -454,7 +456,15 @@ map.on('pointermove', e => {
   const tip = $('tooltip');
   const f = map.forEachFeatureAtPixel(e.pixel, f => (f.get('seg') || f.get('info') ? f : undefined), {hitTolerance: 4});
   map.getTargetElement().style.cursor = f ? 'pointer' : '';
-  if (!f) { tip.style.display = 'none'; return; }
+  if (!f) {
+    const poi = rejoinOn ? null : findPoi(e.pixel);
+    map.getTargetElement().style.cursor = poi ? 'pointer' : '';
+    if (!poi) { tip.style.display = 'none'; return; }
+    tip.innerHTML = `<b>${poiText(poi)}</b>Clicca per usarlo come tappa del giro`;
+    tip.style.display = 'block';
+    tip.style.left = `${e.pixel[0] + 14}px`; tip.style.top = `${e.pixel[1] + 14}px`;
+    return;
+  }
   const seg = f.get('seg');
   const road = seg?.roadClass && seg.roadClass !== 'path';
   tip.innerHTML = seg
@@ -470,6 +480,29 @@ map.on('pointermove', e => {
   tip.style.display = 'block';
   tip.style.left = `${e.pixel[0] + 14}px`; tip.style.top = `${e.pixel[1] + 14}px`;
 });
+
+// --- punti di interesse delle tile ------------------------------------------
+
+// I livelli puntuali delle tile di wm-tiles che possono diventare tappe. Le
+// localita' vengono per ultime: un nome di luogo e' meno preciso di una cima.
+const POI_LAYERS = ['rifugi', 'osmpoi', 'mountain_peak', 'poi'];
+const KIND_IT = {peak: 'cima', saddle: 'valico', mountain_pass: 'valico', spring: 'sorgente', alpine_hut: 'rifugio',
+  wilderness_hut: 'bivacco', shelter: 'riparo', cave_entrance: 'grotta', viewpoint: 'punto panoramico',
+  drinking_water: 'fontana', locality: 'località', volcano: 'vulcano', waterfall: 'cascata', hut: 'rifugio'};
+function findPoi(pixel) {
+  const found = [];
+  map.forEachFeatureAtPixel(pixel, f => {
+    if (f.getType?.() !== 'Point' || !POI_LAYERS.includes(f.get('layer')) || !f.get('name')) return;
+    found.push(f);
+  }, {hitTolerance: 6, layerFilter: l => l !== routeLayer});
+  if (!found.length) return null;
+  found.sort((a, b) => (a.get('kind') === 'locality') - (b.get('kind') === 'locality'));
+  const f = found[0];
+  const flat = f.getFlatCoordinates ? f.getFlatCoordinates() : f.getGeometry().getCoordinates();
+  return {name: f.get('name'), kind: KIND_IT[f.get('kind') ?? f.get('class')] ?? f.get('kind') ?? f.get('class') ?? '',
+          ele: f.get('ele') ?? null, coord: ol.proj.toLonLat([flat[0], flat[1]])};
+}
+const poiText = p => `${p.name}${p.kind ? ' · ' + p.kind : ''}${p.ele ? ' · ' + p.ele + ' m' : ''}`;
 
 // --- calcolo ---------------------------------------------------------------
 
@@ -533,7 +566,10 @@ async function rejoin(position) {
 map.on('singleclick', e => {
   const p = ol.proj.toLonLat(e.coordinate);
   if (rejoinOn) return rejoin(p).catch(showError);
-  state.points.push(p);
+  // un clic su un punto di interesse delle tile prende le sue coordinate esatte e il suo nome
+  const poi = findPoi(e.pixel);
+  state.points.push(poi ? poi.coord : p);
+  state.poi[state.points.length - 1] = poi;
   recompute().catch(showError);
 });
 document.querySelectorAll('input[name=engine]').forEach(r => r.addEventListener('change', () => {
@@ -548,8 +584,8 @@ for (const id of ['prodProfile', 'maxRating', 'maxSlope', 'excludeUnknown'])
   $(id).addEventListener('change', () => recompute().catch(showError));
 $('colorBy').addEventListener('change', () => { syncUrl(); drawLegends(); draw(); });
 for (const id of ['direction', 'progress']) $(id).addEventListener('change', syncUrl);
-$('clear').addEventListener('click', () => { state.points = []; recompute().catch(showError); });
-$('undo').addEventListener('click', () => { state.points.pop(); recompute().catch(showError); });
+$('clear').addEventListener('click', () => { state.points = []; state.poi = []; recompute().catch(showError); });
+$('undo').addEventListener('click', () => { state.points.pop(); state.poi.length = state.points.length; recompute().catch(showError); });
 map.on('moveend', syncUrl);
 
 async function loadMeta() {

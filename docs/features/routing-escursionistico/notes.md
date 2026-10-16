@@ -184,6 +184,14 @@
   via e' il tratto "fuori sentiero". Provato: `prudente` da Calci al Monte Serra
   ora risponde cosi' e suggerisce `escursionista`; i 30 percorsi di prova non
   cambiano.
+- **Tappe dai punti di interesse delle tile** (d'accordo con il dev, solo nella
+  preview): un clic su un'icona dei livelli `rifugi`, `osmpoi`,
+  `mountain_peak` o `poi` di wm-tiles usa le coordinate esatte e il nome del
+  punto come tappa ("Monte Serra · cima · 917 m"); passandoci sopra un tooltip
+  lo dice. Le localita' vengono per ultime. Si fa tutto in OpenLayers
+  (`forEachFeatureAtPixel` sui livelli vettoriali), senza toccare tile o
+  motore. Limite: le icone che OpenLayers nasconde perche' si sovrappongono non
+  si possono cliccare. I nomi delle tappe non stanno nell'URL.
 - **Mai senza percorso** (richiesta del dev, 16 ottobre 2026): se il giro non
   riesce con il profilo scelto, il gateway lo calcola tratto per tratto (da un
   punto al successivo) e il tratto che non riesce passa al profilo successivo

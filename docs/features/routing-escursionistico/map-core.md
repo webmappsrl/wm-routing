@@ -80,6 +80,11 @@ nell'app restano inutilizzati.
       punto 8 e il 9 il percorso contiene tratti oltre il tuo profilo"
 - [ ] Il profilo `libero` (qualsiasi via a piedi) si propone solo come scelta
       esplicita, con un avviso: comprende vie ferrate e ghiacciai
+- [ ] Tappe dai punti di interesse della mappa: un tocco su un'icona delle tile
+      (rifugio, cima, sorgente, valico: livelli `rifugi`, `osmpoi`,
+      `mountain_peak`, `poi` di wm-tiles) usa le sue coordinate e il suo nome
+      come tappa della traccia UGC, come fa la preview di wm-routing
+      (`findPoi` in `preview/preview.js`)
 - [ ] I `connectors` della risposta (dal punto messo dall'utente al punto
       agganciato alla via) si disegnano punteggiati, perche' il percorso del
       motore parte e arriva sulla via; nel rientro il primo segmento con
