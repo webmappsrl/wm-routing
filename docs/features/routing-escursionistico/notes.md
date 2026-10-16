@@ -249,12 +249,8 @@
   mette 1,5 km/h oltre E, cosi' anche `esperto` evita una scorciatoia EE di
   meta' lunghezza. Da tarare con la preview.
 
-- Memoria del pre-passo sull'area intera: 373 MB per 68 MB di PBF fanno
-  pensare a decine di GB sul PBF nazionale, se crescono in proporzione. Quasi
-  tutto e' l'indice delle posizioni dei nodi che pyosmium tiene in memoria con
-  `locations=True`: sul server si passa a un indice su file
-  (`apply_file(..., locations=True, idx="dense_mmap_array")`, Linux) prima del
-  primo import, misurando (Task 11).
+- Memoria del pre-passo sull'area intera: ridotta e da misurare sul server
+  al primo import (Misure, "Memoria del pre-passo").
 
 ## Misure
 
@@ -270,6 +266,24 @@
   `highway`, `cai` 6.983, `sac` 1.592, `via_ferrata` 4, 167 zone militari,
   1.565 catene lunghe, 523 tile z13, tutte con quote; 329 MB di memoria
   massima. 663 relazioni `route=hiking`.
+
+### Memoria del pre-passo (16 ottobre 2026, Mac)
+
+Sulla cella di Pisa (62 MB, 7,1 milioni di nodi) da 329 MB a 268 MB, con
+risultato identico (`ways.sqlite` e `tiles-z13.txt` uguali byte per byte):
+- la passata 1 montava i poligoni sul file intero, tenendo in memoria tutte le
+  vie (248 MB): ora le relazioni si leggono senza posizioni e i poligoni su un
+  estratto `osmium tags-filter` con soli ghiacciai e zone militari (54 MB);
+- per via un intero solo (bit della difficolta' e tre segnali) invece di un
+  dizionario, e le righe della tabella scritte a blocchi di 50.000;
+- l'indice delle posizioni dei nodi su file (`WM_NODE_INDEX=sparse_file_array`,
+  16 byte per nodo: 117 MB qui, nella cartella del grafo, cancellato dopo).
+  `dense_*` no: vuole 8 byte per l'id di nodo piu' alto (oltre 13 miliardi,
+  cioe' 100 GB).
+Restano in memoria circa 135 MB anonimi, di cui 30 di tabelle Python (184 mila
+vie, 190 mila nodi di sentieri sconosciuti): sul nazionale, se crescono in
+proporzione, qualche GB, sotto il tetto di 12 GB del container
+(`WM_PREP_MEM`) che lo fa fallire prima di togliere memoria alle tile.
 
 ### Motore sulla cella di Pisa (16 ottobre 2026, Mac)
 

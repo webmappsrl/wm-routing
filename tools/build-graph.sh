@@ -37,10 +37,15 @@ cleanup() {
 }
 trap cleanup EXIT
 mkdir -p "$DIR/quote-cache"     # deve esistere: in sola lettura il motore non puo' crearla
-PREP=(docker run --rm --oom-score-adj 900 -e WM_GRAPH_BBOX
+# il tetto fa fallire il pre-passo prima che tolga memoria alle tile (Pisa: 280 MB)
+PREP=(docker run --rm --oom-score-adj 900 --memory "${WM_PREP_MEM:-12g}" -e WM_GRAPH_BBOX
+      -e WM_NODE_INDEX=sparse_file_array,/out/nodi.idx
       -v "$(dirname "$PBF")":/in:ro -v "$DIR":/out wm-routing-prepare)
 "${PREP[@]}" bash clip.sh "/in/$(basename "$PBF")" /out/ritagliato.osm.pbf
+# indice delle posizioni dei nodi su file, nella cartella del grafo (disco locale):
+# in memoria sul nazionale non starebbe
 "${PREP[@]}" python enrich.py /out/ritagliato.osm.pbf /out/arricchito.osm.pbf /out/ways.sqlite /out/tiles-z13.txt
+rm -f "$DIR/nodi.idx"
 cp "$DEM" "$DIR/terrain.pmtiles"
 # nessuna via deve cadere in una tile senza quote (GraphHopper metterebbe 0)
 "${PREP[@]}" python /prepare/check-tiles.py /out/tiles-z13.txt /out/terrain.pmtiles || exit 2

@@ -8,7 +8,10 @@ delle difficolta'".
 """
 import json
 import math
+import os
 import sqlite3
+import subprocess
+import tempfile
 import sys
 from collections import Counter, defaultdict
 
@@ -21,6 +24,12 @@ from difficulty import (GLACIER_RATING, POOR_VISIBILITY, cai_to_rating,
                         rating_to_sac, sac_to_rating)
 
 LONG_CHAIN_M = 500
+# Indice delle posizioni dei nodi: di serie in memoria; sul PBF nazionale su file
+# (WM_NODE_INDEX=sparse_file_array,<percorso>), altrimenti non sta in memoria.
+NODE_INDEX = os.environ.get("WM_NODE_INDEX", "flex_mem")
+# Per ogni via un solo intero: difficolta' (bit 0-2), zona militare, via ferrata,
+# catena lunga di sconosciuti. Un dizionario per via non starebbe in memoria.
+MILITARY, FERRATA, LONG = 8, 16, 32
 
 
 def effective(cai_values, own_cai, own_sac, glacier, visibility, via_ferrata=False):
@@ -45,15 +54,13 @@ def is_military(tags):
     return tags.get("landuse") == "military" or "military" in tags
 
 
-class Areas(osmium.SimpleHandler):
-    """Passata 1: relazioni escursionistiche, ghiacciai, zone militari."""
+class Relations(osmium.SimpleHandler):
+    """Passata 1a: cai_scale delle relazioni escursionistiche (senza posizioni)."""
 
     def __init__(self):
         super().__init__()
         self.cai_by_way = defaultdict(list)
-        self.glaciers, self.military = [], []
         self.unknown_cai = Counter()
-        self.factory = osmium.geom.WKBFactory()
 
     def relation(self, r):
         if r.tags.get("route") not in ("hiking", "foot"):
@@ -67,6 +74,16 @@ class Areas(osmium.SimpleHandler):
         for m in r.members:
             if m.type == "w":
                 self.cai_by_way[m.ref].append(cai)
+
+
+class Areas(osmium.SimpleHandler):
+    """Passata 1b: poligoni di ghiacciai e zone militari, su un estratto con solo quelli."""
+
+    def __init__(self, relations):
+        super().__init__()
+        self.cai_by_way, self.unknown_cai = relations.cai_by_way, relations.unknown_cai
+        self.glaciers, self.military = [], []
+        self.factory = osmium.geom.WKBFactory()
 
     def area(self, a):
         tags = {t.k: t.v for t in a.tags}
@@ -108,13 +125,16 @@ def length_m(nodes):
 class Classify(osmium.SimpleHandler):
     """Passata 2: difficolta' effettiva e catene di sentieri sconosciuti."""
 
-    def __init__(self, areas):
+    def __init__(self, areas, db):
         super().__init__()
-        self.areas = areas
+        self.areas, self.db = areas, db
+        self.rows = []                     # righe della tabella laterale, scritte a blocchi
+        self.origins = Counter()
+        self.horse = 0
         self.glacier_tree = STRtree(areas.glaciers) if areas.glaciers else None
         self.military_tree = STRtree(areas.military) if areas.military else None
         self.factory = osmium.geom.WKBFactory()
-        self.info = {}                     # way_id -> riga della tabella laterale
+        self.flags = {}                    # way_id -> intero compatto (vedi MILITARY, FERRATA, LONG)
         self.parent = {}                   # union-find sui nodi delle vie sconosciute
         self.unknown_len = {}              # way_id -> (lunghezza, primo nodo)
         self.tiles = set()                 # tile z13 dove GraphHopper chiedera' quote
@@ -152,33 +172,44 @@ class Classify(osmium.SimpleHandler):
                                    glacier, tags.get("trail_visibility"), via_ferrata)
         all_cai = cai_values + ([tags["cai_scale"]] if "cai_scale" in tags else [])
         cai = max(all_cai, key=lambda v: cai_to_rating(v) or 0, default=None)
-        self.info[w.id] = dict(cai=cai, sac=tags.get("sac_scale"), horse=tags.get("horse_scale"),
-                               glacier=int(glacier), military=int(military),
-                               visibility=tags.get("trail_visibility"), origin=origin,
-                               rating=rating, long_chain=0)
+        self.flags[w.id] = rating | (MILITARY if military else 0) | (FERRATA if origin == "via_ferrata" else 0)
+        self.rows.append((w.id, cai, tags.get("sac_scale"), tags.get("horse_scale"), int(glacier), int(military),
+                          tags.get("trail_visibility"), origin, 0))
+        self.origins[origin] += 1
+        self.horse += "horse_scale" in tags
+        if len(self.rows) >= 50_000:
+            self.flush()
         if origin == "none" and tags.get("highway") == "path":
             ids = [n.ref for n in w.nodes]
             for a, b in zip(ids, ids[1:]):
                 self.union(a, b)
             self.unknown_len[w.id] = (length_m(nodes), ids[0])
 
+    def flush(self):
+        self.db.executemany("insert into ways values (?,?,?,?,?,?,?,?,?)", self.rows)
+        self.rows = []
+
     def mark_long_chains(self):
         total = defaultdict(float)
         for length, first in self.unknown_len.values():
             total[self.find(first)] += length
         long_roots = {r for r, t in total.items() if t > LONG_CHAIN_M}
+        marked = []
         for way_id, (_, first) in self.unknown_len.items():
             if self.find(first) in long_roots:
-                self.info[way_id]["long_chain"] = 1
+                self.flags[way_id] |= LONG
+                marked.append((way_id,))
+        self.flush()
+        self.db.executemany("update ways set long_chain = 1 where way_id = ?", marked)
         return len(long_roots)
 
 
 class Write(osmium.SimpleHandler):
     """Passata 3: PBF arricchito."""
 
-    def __init__(self, info, writer):
+    def __init__(self, flags, writer):
         super().__init__()
-        self.info, self.writer = info, writer
+        self.flags, self.writer = flags, writer
 
     def node(self, n):
         self.writer.add_node(n)
@@ -187,46 +218,55 @@ class Write(osmium.SimpleHandler):
         self.writer.add_relation(r)
 
     def way(self, w):
-        i = self.info.get(w.id)
-        if i is None:
+        f = self.flags.get(w.id)
+        if f is None:
             self.writer.add_way(w)
             return
         tags = {t.k: t.v for t in w.tags}
-        sac = rating_to_sac(i["rating"])
+        sac = rating_to_sac(f & 7)
         if sac:
             tags["sac_scale"] = sac
         else:
             tags.pop("sac_scale", None)
         tags.pop("horse_scale", None)       # l'originale sta nella tabella laterale
-        if i["origin"] == "via_ferrata":
+        if f & FERRATA:
             tags["highway"] = "path"        # GraphHopper scarta via_ferrata per tutti i profili
-        if i["long_chain"]:
+        if f & LONG:
             tags["horse_scale"] = "impossible"
-        if i["military"]:
+        if f & MILITARY:
             tags["access"] = "no"
         self.writer.add_way(w.replace(tags=tags))
 
 
 def enrich(src, dst, db_path, tiles_path=None):
-    areas = Areas()
-    areas.apply_file(src, locations=True)
-    classify = Classify(areas)
-    classify.apply_file(src, locations=True)
-    long_chains = classify.mark_long_chains()
+    # Passata 1 in due pezzi. Le relazioni escursionistiche non vogliono le
+    # posizioni dei nodi; i poligoni si montano su un estratto con i soli
+    # ghiacciai e zone militari: montarli sul file intero tiene in memoria
+    # tutte le vie del file (248 MB sulla cella di Pisa, decine di GB sul
+    # nazionale).
+    relations = Relations()
+    relations.apply_file(src, locations=False)
+    areas = Areas(relations)
+    with tempfile.TemporaryDirectory(dir=os.path.dirname(os.path.abspath(dst))) as tmp:
+        only_areas = os.path.join(tmp, "aree.osm.pbf")
+        subprocess.run(["osmium", "tags-filter", "--overwrite", "-o", only_areas, src,
+                        "a/natural=glacier", "a/landuse=military", "a/military"], check=True,
+                       stdout=subprocess.DEVNULL)
+        areas.apply_file(only_areas, locations=True)
 
     db = sqlite3.connect(db_path)
     db.execute("drop table if exists ways")
     db.execute("create table ways (way_id integer primary key, cai text, sac text, horse text,"
                " glacier integer, military integer, visibility text, origin text, long_chain integer)")
-    db.executemany("insert into ways values (?,?,?,?,?,?,?,?,?)",
-                   ((k, v["cai"], v["sac"], v["horse"], v["glacier"], v["military"],
-                     v["visibility"], v["origin"], v["long_chain"]) for k, v in classify.info.items()))
+    classify = Classify(areas, db)
+    classify.apply_file(src, locations=True, idx=NODE_INDEX)
+    long_chains = classify.mark_long_chains()
     db.commit()
     db.close()
 
     writer = osmium.SimpleWriter(dst, overwrite=True)
     try:
-        Write(classify.info, writer).apply_file(src)
+        Write(classify.flags, writer).apply_file(src)
     finally:
         writer.close()
 
@@ -234,11 +274,9 @@ def enrich(src, dst, db_path, tiles_path=None):
         with open(tiles_path, "w") as f:
             f.writelines(f"{x}/{y}\n" for x, y in sorted(classify.tiles))
 
-    origins = Counter(v["origin"] for v in classify.info.values())
-    return {"ways": len(classify.info), **origins, "glaciers": len(areas.glaciers),
+    return {"ways": len(classify.flags), **classify.origins, "glaciers": len(areas.glaciers),
             "military_areas": len(areas.military), "long_chains": long_chains,
-            "horse_scale_originali": sum(1 for v in classify.info.values() if v["horse"]),
-            "tiles_z13": len(classify.tiles),
+            "horse_scale_originali": classify.horse, "tiles_z13": len(classify.tiles),
             "cai_unknown_values": dict(areas.unknown_cai)}
 
 
