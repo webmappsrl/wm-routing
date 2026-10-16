@@ -97,7 +97,9 @@
     #fit { position: absolute; top: 74px; left: .5em; z-index: 4; width: 1.375em; height: 1.375em; padding: 0;
            font-size: 1.14em; line-height: 1; background: rgba(255,255,255,.85); border: 0; border-radius: 4px; }
     #sheet-top { display: none; }
-    #tooltip.pinned { pointer-events: auto; }
+    #tooltip.pinned, #tooltip.poi { pointer-events: auto; }
+    #tooltip.poi { max-width: 340px; }
+    #tooltip a { color: #9ad1ff; }
     #tooltip .actions { display: flex; gap: 8px; margin-top: 8px; }
     #tooltip .actions button { flex: 1; color: var(--fg); }
 

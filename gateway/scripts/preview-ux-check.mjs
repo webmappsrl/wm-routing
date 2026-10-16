@@ -280,6 +280,22 @@ if (px) {
     const shown = await page.waitForFunction(() => document.querySelector('#tooltip .wiki'), null, {timeout: 20000})
       .then(() => true, () => false);
     check(shown, 'foto e riassunto wiki nel tooltip del POI, prima della tappa');
+    if (shown) {
+      // il tooltip si puo' "agganciare": entrandoci col mouse resta, e il link si apre
+      const link = await page.locator('#tooltip .wiki a').boundingBox();
+      await page.mouse.move(link.x + 4, link.y + 4, {steps: 6});
+      await page.waitForTimeout(300);
+      check(await page.locator('#tooltip').isVisible(), 'il tooltip resta aperto entrandoci col mouse');
+      const [popup] = await Promise.all([
+        page.context().waitForEvent('page', {timeout: 5000}).catch(() => null),
+        page.locator('#tooltip .wiki a').click({timeout: 3000}).catch(() => fails.push('link wiki non cliccabile')),
+      ]);
+      check(popup && /wikipedia\.org/.test(popup.url()), 'il link apre Wikipedia');
+      if (popup) await popup.close();
+      const words = await page.evaluate(() => document.querySelector('#tooltip .wiki span')?.textContent.length ?? 0);
+      check(words > 250, `riassunto non troncato a 220 (ora ${words} caratteri)`);
+      await page.mouse.move(px[0], px[1]);
+    }
   }
   await page.mouse.click(px[0], px[1]); await page.waitForTimeout(800);
   check((await txt('#points'))?.includes('Monte Serra'), 'il clic sull\'icona aggiunge la tappa con il nome');

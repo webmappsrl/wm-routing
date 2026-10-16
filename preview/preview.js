@@ -378,7 +378,7 @@ function drawPoints() {
     eta(i) + '</span>' +
     (off.has(i) ? ` <span class="off">a ${off.get(i)} m dal sentiero</span>` : '') +
     `<button data-i="${i}" title="Togli questo punto">×</button>` +
-    (state.poi[i]?.wiki ? wikiHtml(state.poi[i].wiki) : '') + '</li>').join('');
+    (state.poi[i]?.wiki ? wikiHtml(state.poi[i].wiki, 220) : '') + '</li>').join('');
   $('points').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
     state.points.splice(Number(b.dataset.i), 1);
     state.poi.splice(Number(b.dataset.i), 1);
@@ -696,11 +696,19 @@ map.on('pointermove', e => {
   if (tip.classList.contains('pinned')) return;   // la finestrella appuntata resta: si chiude coi suoi pulsanti o cliccando altrove
   const f = featureAt(e.pixel, 4);
   map.getTargetElement().style.cursor = f ? 'pointer' : '';
-  if (f) delete tip.dataset.poi;
+  if (f) { delete tip.dataset.poi; tip.classList.remove('poi'); }
   if (!f) {
     const poi = rejoinOn ? null : findPoi(e.pixel);
     map.getTargetElement().style.cursor = poi ? 'pointer' : '';
-    if (!poi) { tip.style.display = 'none'; delete tip.dataset.poi; return; }
+    if (!poi) {
+      // se il mouse sta entrando nel tooltip, lo si lascia dov'e' (per cliccare il link)
+      const r = tip.getBoundingClientRect(), ev = e.originalEvent;
+      if (tip.classList.contains('poi') && tip.style.display === 'block'
+          && ev.clientX >= r.left - 6 && ev.clientX <= r.right + 6
+          && ev.clientY >= r.top - 6 && ev.clientY <= r.bottom + 6) return;
+      tip.style.display = 'none'; tip.classList.remove('poi'); delete tip.dataset.poi; return;
+    }
+    tip.classList.add('poi');
     const key = poi.coord.map(v => v.toFixed(5)).join();
     if (tip.dataset.poi !== key) {
       tip.dataset.poi = key;
@@ -826,9 +834,9 @@ const fetchWiki = raw => {
 const esc = t => String(t ?? '').replace(/[<>&"]/g, ch => ({'<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;'}[ch]));
 const CAI_STATO = {0: ['sconosciuto', '#9e9e9e'], 1: ['1/4', '#e53935'], 2: ['2/4', '#fb8c00'],
                    3: ['3/4', '#fdd835'], 4: ['4/4 verificato', '#43a047']};
-const wikiHtml = w => (w && (w.extract || w.thumbnail)
+const wikiHtml = (w, max = Infinity) => (w && (w.extract || w.thumbnail)
   ? `<div class="wiki">${w.thumbnail ? `<img src="${esc(w.thumbnail.source)}" alt="">` : ''}
-     <span>${esc((w.extract ?? '').slice(0, 220))}${(w.extract ?? '').length > 220 ? '…' : ''}
+     <span>${esc((w.extract ?? '').slice(0, max))}${(w.extract ?? '').length > max ? '…' : ''}
      <a href="${esc(w.content_urls?.desktop?.page ?? '#')}" target="_blank" rel="noopener">Wikipedia</a></span></div>` : '');
 
 let caiToken = 0;
