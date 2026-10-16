@@ -770,6 +770,14 @@ const poiText = p => `${p.name}${p.kind ? ' · ' + p.kind : ''}${p.ele ? ' · ' 
 // indicativo, non un censimento).
 const ALONG_KINDS = new Set(['spring', 'drinking_water', 'fountain', 'water_point',
                              'alpine_hut', 'wilderness_hut', 'shelter', 'hut']);
+// le tile arrivano dopo il disegno del percorso: si ricalcola a ogni fine resa,
+// con un freno, finche' i punti caricati non cambiano piu'
+let alongLast = 0;
+map.on('rendercomplete', () => {
+  if (!state.results.nuovo || Date.now() - alongLast < 2000) return;
+  alongLast = Date.now();
+  updateAlongRoute();
+});
 function updateAlongRoute() {
   const r = state.results.nuovo;
   state.alongRoute = [];
@@ -786,7 +794,8 @@ function updateAlongRoute() {
       let feats = [];
       try { feats = src.getFeaturesInExtent(ext); } catch { continue; }
       for (const f of feats) {
-        if (f.getType?.() !== 'Point' || !POI_LAYERS.includes(f.get('layer')) || !f.get('name')) continue;
+        // il nome non si pretende: una fontana senza nome e' acqua lo stesso
+        if (f.getType?.() !== 'Point' || !POI_LAYERS.includes(f.get('layer'))) continue;
         const kind = f.get('kind') ?? f.get('class');
         if (!ALONG_KINDS.has(kind)) continue;
         const flat = f.getFlatCoordinates ? f.getFlatCoordinates() : f.getGeometry().getCoordinates();
@@ -799,10 +808,11 @@ function updateAlongRoute() {
           const d = Math.hypot(merc[i][0] - closest[0], merc[i][1] - closest[1]);
           if (d < bd) { bd = d; bi = i; }
         }
-        const key = `${f.get('name')}|${kind}`;
+        const lonlat = ol.proj.toLonLat([flat[0], flat[1]]);
+        const key = f.get('name') ? `${f.get('name')}|${kind}` : `${kind}|${lonlat.map(v => v.toFixed(4)).join()}`;
         if (!best.has(key) || best.get(key).distM > distM)
-          best.set(key, {name: f.get('name'), kind: KIND_IT[kind] ?? kind, distM: Math.round(distM),
-                         atM: cum[bi], coord: ol.proj.toLonLat([flat[0], flat[1]])});
+          best.set(key, {name: f.get('name') ?? null, kind: KIND_IT[kind] ?? kind, distM: Math.round(distM),
+                         atM: cum[bi], coord: lonlat});
       }
     }
     state.alongRoute = [...best.values()].sort((a, b) => a.atM - b.atM).slice(0, 12);
@@ -813,7 +823,7 @@ function updateAlongRoute() {
     <p class="help">Acqua e ripari entro 150 m dal tracciato, fra i punti caricati alla scala attuale.
     Clicca per vederli; per farne una tappa tocca la loro icona sulla mappa.</p>
     <ul class="legend">` + state.alongRoute.map((x, i) =>
-      `<li data-i="${i}" style="cursor:pointer">▸ km ${(x.atM / 1000).toFixed(1)} — ${x.name} · ${x.kind}` +
+      `<li data-i="${i}" style="cursor:pointer">▸ km ${(x.atM / 1000).toFixed(1)} — ${x.name ? `${x.name} · ` : ''}${x.kind}` +
       `${x.distM > 25 ? ` <small>(a ${x.distM} m)</small>` : ''}</li>`).join('') + '</ul></div>';
   el.querySelectorAll('li').forEach(li => li.addEventListener('click', () => {
     const x = state.alongRoute[Number(li.dataset.i)];
