@@ -360,8 +360,15 @@ function draw() {
 
 function drawPoints() {
   const off = new Map(state.offTrail.map(x => [x.punto, x.distanceM]));
+  // come sui cartelli dei sentieri: distanza e tempo DIN dalla partenza a ogni tappa
+  const wp = new Map((state.results.nuovo?.waypoints ?? []).map(w => [w.punto, w]));
+  const eta = i => {
+    const w = wp.get(i);
+    return w && i > 0 ? ` <small class="eta">${(w.distanceM / 1000).toFixed(1)} km · ${timeShort(w.timeH)}</small>` : '';
+  };
   $('points').innerHTML = state.points.map((p, i) =>
-    `<li><span class="num">${i + 1}</span>${state.poi[i] ? poiText(state.poi[i]) : `${p[0].toFixed(5)}, ${p[1].toFixed(5)}`}` +
+    `<li><span class="num">${i + 1}</span><span class="pt">${state.poi[i] ? poiText(state.poi[i]) : `${p[0].toFixed(5)}, ${p[1].toFixed(5)}`}` +
+    eta(i) + '</span>' +
     (off.has(i) ? ` <span class="off">a ${off.get(i)} m dal sentiero</span>` : '') +
     `<button data-i="${i}" title="Togli questo punto">×</button></li>`).join('');
   $('points').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
@@ -377,12 +384,41 @@ function lengthOn(r, pred) {
   return r.segments.filter(pred).reduce((a, s) => a + s.to - s.from, 0) / (c.length - 1);
 }
 const pct = x => (x === null || x === undefined ? 'n.d.' : `${Math.round(x * 100)}%`);
+const timeShort = h => (h < 1 ? `${Math.round(h * 60)} min` : hours(h));
+// difficolta' complessiva del giro: la massima dei tratti (linguaggio delle guide)
+const DIFF_ORDER = ['T', 'E', 'EE', 'EEA', 'via ferrata', 'ghiacciaio'];
+function overallDifficulty(r) {
+  let top = null;
+  for (const s of r.segments ?? [])
+    if (s.difficulty && DIFF_ORDER.indexOf(s.difficulty) > DIFF_ORDER.indexOf(top)) top = s.difficulty;
+  return top;
+}
+// quota minima e massima e tratto piu' ripido (almeno 30 m: sotto e' rumore del DEM)
+function hikeStats(r) {
+  const ele = r.geometry.coordinates.map(c => c[2]).filter(e => e !== undefined);
+  const cum = cumulative(r.geometry.coordinates);
+  let steep = null;
+  for (const s of r.segments ?? []) {
+    const len = cum[s.to] - cum[s.from];
+    if (len >= 30 && Math.abs(s.slope ?? 0) > Math.abs(steep?.slope ?? 0))
+      steep = {slope: s.slope, atM: cum[s.from], from: s.from, to: s.to};
+  }
+  return {minEle: ele.length ? Math.min(...ele) : null, maxEle: ele.length ? Math.max(...ele) : null, steep};
+}
 const hours = h => `${Math.floor(h)} h ${String(Math.round((h % 1) * 60)).padStart(2, '0')} min`;
 
 function card(title, color, r, extra = '') {
-  return `<div class="card"><h3>${swatch({color, dash: color === '#1f6feb'})}${title}</h3><dl>
+  const diff = r.segments?.length ? overallDifficulty(r) : null;
+  const badge = diff ? ` <span class="badge" title="Difficoltà complessiva: la massima dei tratti" ` +
+    `style="background:${segColor({difficulty: diff}, 'difficolta')}">${DIFF_SHORT[diff] ?? diff}</span>` : '';
+  const st = r.segments?.length ? hikeStats(r) : null;
+  return `<div class="card"><h3>${swatch({color, dash: color === '#1f6feb'})}${title}${badge}</h3><dl>
     <dt>Distanza</dt><dd>${(r.distanceM / 1000).toFixed(2)} km</dd>
     <dt>Salita / discesa</dt><dd>+${Math.round(r.ascendM ?? 0)} m / -${Math.round(r.descendM ?? 0)} m</dd>
+    ${st?.maxEle !== null && st?.maxEle !== undefined ? `<dt title="Dalle quote del modello del terreno lungo il percorso">Quota</dt>
+    <dd>${Math.round(st.minEle)}–${Math.round(st.maxEle)} m</dd>` : ''}
+    ${st?.steep ? `<dt>Più ripido</dt><dd class="steep" data-from="${st.steep.from}" data-to="${st.steep.to}"
+      title="Clicca per vederlo sulla mappa">${Math.round(Math.abs(st.steep.slope))}% al km ${(st.steep.atM / 1000).toFixed(1)}</dd>` : ''}
     <dt title="A piedi la regola DIN 33466: 4 km/h in piano, 300 m/h in salita, 500 m/h in discesa">Tempo</dt>
     <dd>${hours(r.timeH)} <small>(${r.timeSource})</small></dd>
     <dt title="Parte del percorso su sentieri della rete escursionistica (relazioni route=hiking)">Su sentieri segnati</dt>
@@ -406,7 +442,7 @@ function groupSegments(r) {
   const rows = [];
   const add = (m, k, len) => k && m.set(k, (m.get(k) ?? 0) + len);
   for (const s of r.segments ?? []) {
-    const key = [diffLabel(s), originLabel(s), s.roadClass, s.network && s.network !== 'missing', s.profile].join('|');
+    const key = [diffLabel(s), originLabel(s), s.roadClass, s.network && s.network !== 'missing', s.profile, s.ref ?? ''].join('|');
     const len = cum[s.to] - cum[s.from];
     let last = rows.at(-1);
     if (!last || last.key !== key) {
@@ -426,17 +462,21 @@ function groupSegments(r) {
 
 function summary(r) {
   const rows = groupSegments(r);
-  const byDiff = new Map(), byOrigin = new Map();
+  const byDiff = new Map(), byOrigin = new Map(), byRef = new Map();
   let tot = 0;
   for (const x of rows) {
     tot += x.lenM;
     const d = diffLabel(x.seg), o = originLabel(x.seg);
     byDiff.set(d, (byDiff.get(d) ?? 0) + x.lenM);
     byOrigin.set(o, (byOrigin.get(o) ?? 0) + x.lenM);
+    if (x.seg.ref) for (const ref of x.seg.ref.split(';')) byRef.set(ref, (byRef.get(ref) ?? 0) + x.lenM);
   }
   const fmt = m => [...m].sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k === '—' ? 'strade' : k} ${(v / 1000).toFixed(1)} km`).join(', ');
   const fmtPct = m => [...m].sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${Math.round(v / tot * 100)}%`).join(', ');
-  return `<div class="alt"><b>Per difficoltà</b>: ${fmt(byDiff)}<br><b>Origine del dato</b>: ${fmtPct(byOrigin)}</div>`;
+  const refs = [...byRef].sort((a, b) => b[1] - a[1]).slice(0, 8)
+    .map(([k, v]) => `${k} ${(v / 1000).toFixed(1)} km`).join(', ');
+  return `<div class="alt"><b>Per difficoltà</b>: ${fmt(byDiff)}<br><b>Origine del dato</b>: ${fmtPct(byOrigin)}` +
+    `${refs ? `<br><b>Segnavia</b>: ${refs}` : ''}</div>`;
 }
 
 function drawSegments() {
@@ -446,7 +486,7 @@ function drawSegments() {
   const fb = rows.some(x => x.seg.profile && x.seg.profile !== r.profile);
   state.rows = rows;
   $('segments').innerHTML = `<thead><tr><th>km</th><th>Lungh.</th><th>Difficoltà</th><th>Origine</th><th>sac_scale</th>` +
-    `<th>Tipo</th><th>Fondo</th><th>Pend.</th><th>Segnato</th>${fb ? '<th>Profilo</th>' : ''}</tr></thead><tbody>` +
+    `<th>Tipo</th><th>Fondo</th><th>Pend.</th><th>Segnavia</th>${fb ? '<th>Profilo</th>' : ''}</tr></thead><tbody>` +
     rows.map((x, i) => {
       const s = x.seg, other = s.profile && s.profile !== r.profile;
       return `<tr data-i="${i}" class="${other ? 'fb' : ''}${state.highlight?.from === x.from ? ' sel' : ''}">` +
@@ -456,7 +496,7 @@ function drawSegments() {
         `<td>${x.sac ?? '—'}</td><td>${ROAD_IT[s.roadClass] ?? s.roadClass ?? '—'}</td>` +
         `<td>${x.surface ? (SURFACE_IT[x.surface] ?? x.surface) : '—'}</td>` +
         `<td>${x.lenM ? Math.round(x.slopeSum / x.lenM) : 0}%</td>` +
-        `<td>${s.network && s.network !== 'missing' ? 'sì' : 'no'}${x.ford ? ', guado' : ''}${x.dismount ? ', bici a mano' : ''}</td>` +
+        `<td>${s.ref ?? (s.network && s.network !== 'missing' ? 'sì' : '—')}${x.ford ? ', guado' : ''}${x.dismount ? ', bici a mano' : ''}</td>` +
         `${fb ? `<td>${s.profile ?? ''}</td>` : ''}</tr>`;
     }).join('') + '</tbody>';
   $('segments').querySelectorAll('tbody tr').forEach(tr => tr.addEventListener('click', () => {
@@ -479,6 +519,14 @@ function drawResults() {
   }
   if (produzione) parts.push(card(`Produzione (${PROD_HELP[$('prodProfile').value]})`, '#1f6feb', produzione));
   $('results').innerHTML = parts.length ? parts.join('') : '<p class="help">Metti almeno due punti sulla mappa.</p>';
+  $('results').querySelectorAll('.steep').forEach(el => el.addEventListener('click', () => {
+    state.highlight = {from: Number(el.dataset.from), to: Number(el.dataset.to)};
+    draw();
+    const c = state.results.nuovo.geometry.coordinates.slice(state.highlight.from, state.highlight.to + 1)
+      .map(pt => ol.proj.fromLonLat([pt[0], pt[1]]));
+    if (mobile.matches && document.body.dataset.sheet === 'high') setSheet('mid');
+    map.getView().fit(new ol.geom.LineString(c), {padding: fitPadding(80), maxZoom: 16, duration: 300});
+  }));
   drawMini();
   const warn = [];
   if (nuovo) warn.push(nuovo.warning);
@@ -582,7 +630,8 @@ function tipHtml(f) {
     ? `<b>Motore nuovo</b>Difficoltà: ${DIFF_TEXT[seg.difficulty] ?? (road ? 'nessuna (strada o forestale)' : 'sconosciuta')}` +
       `${seg.difficulty ? ` (${ORIGIN_TEXT[seg.origin] ?? seg.origin})` : ''}${seg.longChain ? ', tratto sconosciuto lungo' : ''}<br>` +
       (seg.sac ? `sac_scale originale: ${seg.sac}<br>` : '') +
-      `Segnato: ${seg.network && seg.network !== 'missing' ? 'sì, ' + (NETWORK_IT[seg.network] ?? seg.network) : 'no'}<br>` +
+      `Segnato: ${seg.network && seg.network !== 'missing' ? 'sì, ' + (NETWORK_IT[seg.network] ?? seg.network) : 'no'}` +
+      `${seg.ref ? ` · segnavia ${seg.ref.replaceAll(';', ', ')}` : ''}<br>` +
       `Tipo: ${ROAD_IT[seg.roadClass] ?? seg.roadClass ?? 'n.d.'} · fondo: ` +
       `${seg.surface && seg.surface !== 'missing' ? (SURFACE_IT[seg.surface] ?? seg.surface) : 'non indicato'}<br>` +
       `Pendenza media: ${seg.slope ?? 0}%${seg.ford ? '<br>Guado' : ''}${seg.dismount ? '<br>Bici a mano' : ''}` +

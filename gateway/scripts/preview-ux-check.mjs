@@ -39,6 +39,13 @@ await page.goto(base + '?p=10.54415,43.73178;10.55618,43.74150;10.55765,43.74468
   '10.59110,43.75744&motore=nuovo&profilo=escursionista&c=10.556,43.756&z=14');
 await page.waitForFunction(() => window.__wm?.state?.results?.nuovo, null, {timeout: 30000}).catch(() => fails.push('12 punti: nessun tracciato'));
 check((await txt('#warning'))?.includes('esperto'), 'avviso sui tratti calcolati con un altro profilo');
+// taglio escursionistico: difficolta' complessiva, quote, tratto piu' ripido, tempi alle tappe, segnavia
+check(/^(T|E|EE|EEA)$/.test((await txt('#results .card .badge'))?.trim() ?? ''), 'distintivo della difficolta\' complessiva');
+check(/\d+–\d+ m/.test((await txt('#results .card'))), 'quota minima e massima in scheda');
+check(/ripido/i.test((await txt('#results .card'))), 'tratto piu\' ripido in scheda');
+check(/(\d+ h |\d+ min)/.test((await txt('#points li:nth-child(2)')) ?? ''), 'tempo DIN alla tappa 2 nell\'elenco dei punti');
+const segHead = await txt('#segments thead');
+check(/Segnavia/.test(segHead ?? ''), 'colonna dei segnavia nella tabella');
 check((await txt('#segments'))?.includes('esperto'), 'tabella dei tratti: profilo usato');
 
 await page.goto(base + '?p=12.0,45.0;12.1,45.1&motore=nuovo&c=12,45&z=12');
