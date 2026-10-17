@@ -1325,6 +1325,15 @@ async function loadMeta() {
   $('engine-help').textContent = ENGINE_HELP[engineMode()];
   $('stamp').textContent = `Dati OpenStreetMap del ${stamp.osm?.slice(0, 10) ?? 'n.d.'} · ` +
     `grafo costruito il ${stamp.builtAt?.slice(0, 10) ?? 'n.d.'}`;
+  // giro arrivato da un link firmato (/g/): se i dati sono stati rigenerati
+  // da allora, il percorso puo' essere cambiato — avviso fisso, non flash
+  if (q.get('d') && stamp.osm && q.get('d') !== stamp.osm) {
+    const b = document.createElement('div');
+    b.textContent = 'I dati sono cambiati da quando questo giro è stato progettato: ricontrolla tempi e difficoltà.';
+    b.style.cssText = 'background:#fff3cd;color:#664d03;border:1px solid #ffecb5;' +
+      'border-radius:6px;padding:8px 10px;margin:6px 0;font-weight:600';
+    $('stamp').after(b);
+  }
   drawArea(stamp.area);
 }
 
