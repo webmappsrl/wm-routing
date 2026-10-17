@@ -24,6 +24,7 @@ identificatori nel codice in inglese.
 | preview | `cd gateway && node scripts/preview-check.mjs` |
 | preview spiegata e su telefono | `cd gateway && node scripts/preview-ux-check.mjs && node scripts/preview-mobile-check.mjs [url] ["iPhone SE"]` |
 | confronto con la produzione | `node tools/compare.mjs --giro <nome>` |
+| controllo del servizio MCP | `cd gateway && node scripts/mcp-check.mjs` |
 | costruire e scambiare il grafo | `bash tools/build-graph.sh <pbf> <terrain.pmtiles>` (runbook) |
 
 ## Regole del repo
@@ -50,6 +51,7 @@ identificatori nel codice in inglese.
 | Argomento | Cosa copre | Pagina |
 |---|---|---|
 | Routing escursionistico | come il servizio ricava difficolta', quote e profili dai dati di wm-tiles, e cosa e' stato scartato | [docs/knowledge/routing-escursionistico.md](docs/knowledge/routing-escursionistico.md) |
+| Progettazione escursioni via MCP | come l'AI dell'utente progetta giri sui dati di wm-routing: tool, link firmati, GPX dal server e POI dal pre-passo | [docs/knowledge/mcp-progettazione-escursioni.md](docs/knowledge/mcp-progettazione-escursioni.md) |
 
 ## Trappole
 
