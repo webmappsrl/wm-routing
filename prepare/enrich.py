@@ -31,6 +31,62 @@ NODE_INDEX = os.environ.get("WM_NODE_INDEX", "flex_mem")
 # catena lunga di sconosciuti. Un dizionario per via non starebbe in memoria.
 MILITARY, FERRATA, LONG = 8, 16, 32
 
+# Nodi con nome che aiutano a raccontare un giro: cime, valichi, sorgenti e
+# acqua, ripari e rifugi, belvedere, abitati. I tag wikipedia/wikidata si
+# copiano come identificatori, mai i contenuti.
+POI_KINDS = {("natural", "peak"): "peak", ("natural", "saddle"): "saddle",
+             ("natural", "spring"): "spring",
+             ("amenity", "drinking_water"): "drinking_water",
+             ("amenity", "fountain"): "fountain", ("amenity", "shelter"): "shelter",
+             ("tourism", "alpine_hut"): "alpine_hut",
+             ("tourism", "wilderness_hut"): "wilderness_hut",
+             ("tourism", "viewpoint"): "viewpoint"}
+POI_PLACES = {"village", "hamlet", "locality"}
+
+
+class Pois(osmium.SimpleHandler):
+    def __init__(self, db):
+        super().__init__()
+        self.db = db
+        self.count = 0
+
+    def node(self, n):
+        name = n.tags.get("name")
+        if not name:
+            return
+        kind = next((label for (k, v), label in POI_KINDS.items() if n.tags.get(k) == v), None)
+        if not kind and n.tags.get("mountain_pass") == "yes":
+            kind = "mountain_pass"
+        if not kind and n.tags.get("place") in POI_PLACES:
+            kind = n.tags.get("place")
+        if not kind:
+            return
+        try:
+            ele = float(n.tags.get("ele", ""))
+        except ValueError:
+            ele = None
+        self.db.execute("insert or replace into poi values (?, ?, ?, ?, ?, ?, ?, ?)",
+                        (n.id, name, kind, ele, n.location.lon, n.location.lat,
+                         n.tags.get("wikipedia"), n.tags.get("wikidata")))
+        self.count += 1
+
+
+def extract_pois(src, db):
+    """Tabella laterale dei POI, sorella di ways. Fail-soft: un errore qui
+    logga e lascia il build valido, senza tabella."""
+    try:
+        db.execute("drop table if exists poi")
+        db.execute("create table poi (osm_id integer primary key, name text, kind text,"
+                   " ele real, lon real, lat real, wikipedia text, wikidata text)")
+        db.execute("create index poi_lonlat on poi (lon, lat)")
+        handler = Pois(db)
+        handler.apply_file(src)
+        return handler.count
+    except Exception as e:
+        print(f"estrazione POI fallita, build senza tabella poi: {e}", file=sys.stderr)
+        db.execute("drop table if exists poi")
+        return 0
+
 
 def effective(cai_values, own_cai, own_sac, glacier, visibility, via_ferrata=False):
     if via_ferrata:
@@ -274,6 +330,7 @@ def enrich(src, dst, db_path, tiles_path=None):
     classify = Classify(areas, db)
     classify.apply_file(src, locations=True, idx=NODE_INDEX)
     long_chains = classify.mark_long_chains()
+    pois = extract_pois(src, db)
     db.commit()
     db.close()
 
@@ -290,7 +347,7 @@ def enrich(src, dst, db_path, tiles_path=None):
     return {"ways": len(classify.flags), **classify.origins, "glaciers": len(areas.glaciers),
             "military_areas": len(areas.military), "long_chains": long_chains,
             "horse_scale_originali": classify.horse, "tiles_z13": len(classify.tiles),
-            "cai_unknown_values": dict(areas.unknown_cai)}
+            "cai_unknown_values": dict(areas.unknown_cai), "pois": pois}
 
 
 if __name__ == "__main__":

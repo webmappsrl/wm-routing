@@ -15,6 +15,7 @@ def result(tmp_path_factory):
     tiles = d / "tiles-z13.txt"
     summary = enrich(FIX, str(out), str(db), str(tiles))
     summary["_tiles"] = set(tiles.read_text().split())
+    summary["_db_path"] = str(db)
     tags = {w.id: {t.k: t.v for t in w.tags}
             for w in osmium.FileProcessor(str(out), osmium.osm.WAY)}
     con = sqlite3.connect(db)
@@ -96,3 +97,19 @@ def test_rel_ids_from_relations(result):
     assert rows[1]["rel_ids"] == "1"
     assert rows[2]["rel_ids"] == "2;3;4"    # tutte le relazioni escursionistiche, anche senza ref
     assert rows[4]["rel_ids"] is None
+
+
+def test_poi_table(result):
+    _, _, summary = result
+    con = sqlite3.connect(summary["_db_path"])
+    con.row_factory = sqlite3.Row
+    pois = {r["name"]: dict(r) for r in con.execute("select * from poi")}
+    cima = pois["Monte Prova"]                       # n90: cima con nome e wiki
+    assert cima["kind"] == "peak" and cima["ele"] == 917
+    assert cima["wikidata"] == "Q999999" and cima["wikipedia"] == "it:Monte Prova"
+    assert cima["osm_id"] == 90
+    fonte = pois["Fonte di Prova"]                   # n91: fontana senza wiki
+    assert fonte["kind"] == "drinking_water"
+    assert fonte["wikipedia"] is None and fonte["wikidata"] is None
+    names = set(pois)
+    assert names == {"Monte Prova", "Fonte di Prova"}   # n92 senza nome resta fuori

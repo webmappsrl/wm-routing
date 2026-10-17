@@ -19,6 +19,9 @@ n31 v1 x9.996 y44.006
 n32 v1 x10.002 y44.006
 n33 v1 x10.002 y44.010
 n34 v1 x9.996 y44.010
+n90 v1 x10.006 y44.004 Tnatural=peak,name=Monte%20%Prova,ele=917,wikidata=Q999999,wikipedia=it:Monte%20%Prova
+n91 v1 x10.008 y44.002 Tamenity=drinking_water,name=Fonte%20%di%20%Prova
+n92 v1 x10.012 y44.005 Tnatural=peak,ele=500
 w1 v1 Thighway=path Nn1,n2
 w2 v1 Thighway=path Nn1,n3
 w3 v1 Thighway=path Nn3,n2
