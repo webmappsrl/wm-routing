@@ -1,6 +1,6 @@
 // Unico punto da cui il gateway scrive un log: le posizioni sono dati personali
 // (CLAUDE.md, "Nessuna coordinata nei log").
-const ALLOWED = ['route', 'status', 'ms', 'shard', 'profile', 'stato', 'error'];
+const ALLOWED = ['route', 'status', 'ms', 'shard', 'profile', 'stato', 'error', 'tool'];
 
 export function logEvent(fields) {
   const out = {t: new Date().toISOString()};

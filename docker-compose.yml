@@ -18,6 +18,10 @@ services:
       WM_WAYS_DB: /graph/ways.sqlite
       WM_STAMP: /graph/stamp.json
       WM_GRAPH_BBOX: "${WM_GRAPH_BBOX:?serve tools/bbox.sh}"
+      WM_LINK_KEY: "${WM_LINK_KEY:-}"           # firma dei link /g/ (segreto, mai nel repo)
+      WM_MCP_ENABLED: "${WM_MCP_ENABLED:-0}"    # interruttore della rotta /mcp
+      WM_MCP_TOKEN: "${WM_MCP_TOKEN:-}"         # token d'accesso /mcp (segreto, mai nel repo)
+      WM_PUBLIC_URL: "${WM_PUBLIC_URL:-}"       # base dei link consegnati (es. https://routing.maphub.it)
     mem_limit: 512m
     ports: ["127.0.0.1:8991:8991"]
     volumes:
