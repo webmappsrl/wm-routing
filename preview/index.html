@@ -299,6 +299,12 @@
     </section>
     </div>
   </div>
-  <script src="preview.js"></script>
+  <script type="module">
+    import * as profiloScala from './profilo-scala.js';
+    import * as profiloDisegno from './profilo-disegno.js';
+    window.WmProfiloScala = profiloScala;
+    window.WmProfiloDisegno = profiloDisegno;
+  </script>
+  <script defer src="preview.js"></script>
 </body>
 </html>

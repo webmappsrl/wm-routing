@@ -554,66 +554,29 @@ function drawResults() {
   $('warning').textContent = warn.join(' ');
 }
 
-function cumulative(coords) {
-  const out = [0];
-  for (let i = 1; i < coords.length; i++) {
-    const [x1, y1] = coords[i - 1], [x2, y2] = coords[i];
-    const k = Math.cos((y1 + y2) / 2 * Math.PI / 180);
-    out.push(out[i - 1] + Math.hypot((x2 - x1) * k, y2 - y1) * 111320);
-  }
-  return out;
-}
+// Scala, tacche e distanze cumulate vengono da profilo-scala.js (caricato da index.html),
+// condiviso con scheda stampabile e server.
+const {cumulative, scalaProfilo} = window.WmProfiloScala;
 
 function drawProfile() {
-  const cv = $('profile'), ctx = cv.getContext('2d');
-  cv.width = cv.clientWidth * devicePixelRatio; cv.height = cv.clientHeight * devicePixelRatio;
-  ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
-  const W = cv.clientWidth, H = cv.clientHeight, L = 42, B = 18;
-  ctx.clearRect(0, 0, W, H);
+  const cv = $('profile');
   state.profileMap = null;
   state.profilePaths = null;
   const series = Object.entries(state.results)
     .map(([name, r]) => ({name, r, c: r.geometry.coordinates, d: cumulative(r.geometry.coordinates)}));
-  if (!series.length) { $('elevation-axis').textContent = ''; $('profile-readout').textContent = ''; return; }
+  if (!series.length) {
+    cv.getContext('2d').clearRect(0, 0, cv.width, cv.height);
+    $('elevation-axis').textContent = ''; $('profile-readout').textContent = ''; return;
+  }
   const alts = state.results.nuovo?.alternatives ?? [];
   const altSeries = alts.map(a => ({c: a.geometry.coordinates, d: cumulative(a.geometry.coordinates)}));
-  const ele = [...series, ...altSeries].flatMap(s => s.c.map(p => p[2] ?? 0));
-  const lo = Math.floor(Math.min(...ele) / 50) * 50, hi = Math.ceil(Math.max(lo + 50, ...ele) / 50) * 50;
-  const maxD = Math.max(...[...series, ...altSeries].map(s => s.d.at(-1)));
-  const x = d => L + (d / maxD) * (W - L - 6), y = e => H - B - ((e - lo) / (hi - lo)) * (H - B - 6);
-  ctx.strokeStyle = '#d8dde2'; ctx.fillStyle = '#5f6b76'; ctx.font = '10px system-ui';
-  for (const e of [lo, (lo + hi) / 2, hi]) {
-    ctx.beginPath(); ctx.moveTo(L, y(e)); ctx.lineTo(W - 6, y(e)); ctx.stroke();
-    ctx.fillText(`${Math.round(e)} m`, 2, y(e) + 3);
-  }
-  for (const f of [0, 0.5, 1]) ctx.fillText(`${(maxD * f / 1000).toFixed(1)} km`, x(maxD * f) - (f === 1 ? 30 : f ? 14 : 0), H - 4);
-  // le alternative in grigio sotto tutto, come GraphHopper Maps
-  for (const a of altSeries) {
-    ctx.strokeStyle = '#b9c2cb'; ctx.lineWidth = 1.5; ctx.beginPath();
-    a.c.forEach((p, i) => (i ? ctx.lineTo(x(a.d[i]), y(p[2] ?? lo)) : ctx.moveTo(x(a.d[i]), y(p[2] ?? lo))));
-    ctx.stroke();
-  }
-  state.profilePaths = {alt: altSeries.length};
   const by = $('colorBy').value;
-  for (const s of series) {
-    if (s.name === 'nuovo' && s.r.segments?.length) {
-      // il tracciato del motore nuovo col colore del criterio scelto, come sulla mappa
-      ctx.lineWidth = 3;
-      for (const seg of s.r.segments) {
-        ctx.strokeStyle = segColor(seg, by); ctx.beginPath();
-        for (let i = seg.from; i <= seg.to && i < s.c.length; i++) {
-          const px = x(s.d[i]), py = y(s.c[i][2] ?? lo);
-          i === seg.from ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
-        }
-        ctx.stroke();
-      }
-      continue;
-    }
-    ctx.strokeStyle = s.name === 'nuovo' ? '#d0021b' : '#1f6feb'; ctx.lineWidth = 2;
-    ctx.setLineDash(s.name === 'nuovo' ? [] : [6, 4]); ctx.beginPath();
-    s.c.forEach((p, i) => (i ? ctx.lineTo(x(s.d[i]), y(p[2] ?? lo)) : ctx.moveTo(x(s.d[i]), y(p[2] ?? lo))));
-    ctx.stroke(); ctx.setLineDash([]);
-  }
+  // il disegno e' di profilo-disegno.js, lo stesso della scheda stampabile
+  const {L, W, maxD} = window.WmProfiloDisegno.disegnaProfilo(cv,
+    series.map(s => ({c: s.c, colore: s.name === 'nuovo' ? '#d0021b' : '#1f6feb', tratteggio: s.name !== 'nuovo',
+      segmenti: s.name === 'nuovo' ? s.r.segments : null})),
+    altSeries, {coloreSegmento: seg => segColor(seg, by)});
+  state.profilePaths = {alt: altSeries.length};
   const nuovo = series.find(s => s.name === 'nuovo');
   state.profileMap = {L, W, maxD, nuovo: nuovo ? {c: nuovo.c, d: nuovo.d, segments: nuovo.r.segments ?? []} : null};
   $('elevation-axis').innerHTML = 'Asse verticale: quota in metri; orizzontale: distanza dalla partenza. ' +
