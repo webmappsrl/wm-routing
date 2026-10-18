@@ -11,7 +11,7 @@ const geometry = {type: 'LineString', coordinates: [[10.1, 43.1, 100], [10.15, 4
 const okCompute = async () => ({geometry, profile: 'libero'});
 const app = (compute = okCompute, resolvePoi, dataStamp = () => ({osm: '2026-10-08T20:21:06Z'})) => {
   const a = express();
-  a.use('/g', makeGRouter({compute, shard: {profiles: {libero: 'libero'}}, bbox, key, resolvePoi, dataStamp}));
+  a.use('/g', makeGRouter({publicUrl: 'https://r.example', compute, shard: {profiles: {libero: 'libero'}}, bbox, key, resolvePoi, dataStamp}));
   return a;
 };
 const blob = encodeLink({points: [[10.1, 43.1], [10.2, 43.2]], profile: 'libero', stamp: '2026-10-08T20:21:06Z'}, key);
@@ -226,4 +226,9 @@ it('scheda.json con motore in errore: stato e messaggio', async () => {
 it('scheda.json: la nota del blob sta nel JSON ma la pagina scheda non include blob né coordinate', async () => {
   const r = await request(app()).get('/g/scheda').query({t: blob});
   expect(r.text).not.toContain(blob);
+});
+
+it('scheda.json: linkGpx assoluto sul blob della richiesta', async () => {
+  const r = await request(app(full)).get('/g/scheda.json').query({t: blob});
+  expect(r.body.linkGpx).toBe(`https://r.example/g/gpx?t=${encodeURIComponent(blob)}`);
 });

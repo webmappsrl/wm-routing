@@ -2,9 +2,12 @@
 // e il profilo, e il banner "dati cambiati" compare solo se lo stamp diverge.
 // Uso, dalla cartella gateway: node scripts/scheda-check.mjs [base-url]
 // La chiave dei link e' WM_LINK_KEY (ambiente o .env nella radice).
-import {readFileSync} from 'node:fs';
+import {readFileSync, writeFileSync, mkdtempSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import {chromium} from 'playwright';
 import {encodeLink} from '../src/mcp/link.js';
+import {makeDocumentoTool} from '../src/mcp/documento.js';
 
 const base = process.argv[2] ?? 'http://127.0.0.1:8991';
 const key = process.env.WM_LINK_KEY
@@ -75,7 +78,51 @@ try {
   const soglia = rossi.larghezza * 0.5;
   if (rossi.n < soglia) fails.push(`nel profilo manca il tracciato (${rossi.n} pixel rossi, ne servono ${soglia})`);
 } catch { fails.push('manca il canvas del profilo'); }
+
+// GPX, QR e fonti: indirizzo per esteso, QR per un giro con pochi luoghi, avvertenza, due parti di fonti
+const gpx = await page.$eval('.gpx .indirizzo', e => e.textContent).catch(() => null);
+if (!gpx || !/\/g\/gpx\?t=/.test(gpx)) fails.push('manca l\'indirizzo del GPX scritto per esteso');
+else if ((await fetch(gpx).then(r => r.status).catch(() => 0)) !== 200) fails.push('l\'indirizzo del GPX scritto nella scheda non scarica');
+if (!await page.$('.gpx svg.qr')) fails.push('il QR non e\' disegnato per un giro con due luoghi');
+if (!(await page.textContent('.gpx')).includes('potrebbe non coincidere')) fails.push('manca l\'avvertenza sul GPX');
+const fontiTesto = await page.textContent('.fonti-sezione').catch(() => '');
+for (const atteso of ['OpenStreetMap', 'https://www.openstreetmap.org/copyright', 'DIN 33466'])
+  if (!fontiTesto.includes(atteso)) fails.push(`nelle fonti nostre manca "${atteso}"`);
 await page.close();
+
+// il documento da file://, senza rete: il QR non si disegna, l'indirizzo resta, nessun errore
+{
+  const t = encodeURIComponent(encodeLink({...giro, stamp: stampCorrente}, key));
+  const doc = await makeDocumentoTool({gatewayUrl: base, publicUrl: base, linkKey: key,
+    waysDbPath: process.env.WM_WAYS_DB ?? new URL('../../data/ways.sqlite', import.meta.url).pathname})({t,
+    introduzione: 'Vedi [il parco](https://www.parcosanrossore.it/) e [https://example.org/x](https://example.org/x).',
+    luoghi: [{osmId: 1733141336, testo: 'Vedi [Wikipedia](https://it.wikipedia.org/wiki/Monte_Serra).'}],
+    fonti: [{titolo: 'Wikipedia', url: 'https://it.wikipedia.org/wiki/Monte_Serra'}]});
+  if (doc.stato) fails.push(`documento_giro: ${doc.stato}`);
+  else {
+    const file = join(mkdtempSync(join(tmpdir(), 'wm-scheda-')), 'giro.html');
+    writeFileSync(file, doc.documento);
+    const p = await browser.newPage();
+    p.on('pageerror', e => errors.push(String(e)));
+    await p.route(/^https?:\/\//, r => r.abort());
+    await p.goto(`file://${file}`);
+    await p.waitForSelector('table.numeri', {timeout: 30000});
+    if (await p.$('svg.qr')) fails.push('senza rete il QR risulta disegnato');
+    if (!(await p.textContent('.gpx .indirizzo').catch(() => '')).includes('/g/gpx?t=')) fails.push('senza rete l\'indirizzo del GPX non resta');
+    // in stampa: l'indirizzo accanto all'etichetta, nessuna sottolineatura; non raddoppia se l'etichetta e' l'indirizzo
+    await p.emulateMedia({media: 'print'});
+    const link = await p.$$eval('.racconto .corpo a, .racconto-luogo a', as => as.map(a => ({
+      testo: a.textContent, dopo: getComputedStyle(a, '::after').content, sott: getComputedStyle(a).textDecorationLine})));
+    const parco = link.find(l => l.testo === 'il parco');
+    if (!parco || !parco.dopo.includes('https://www.parcosanrossore.it/')) fails.push('in stampa il link non mostra l\'indirizzo');
+    if (!link.some(l => l.testo === 'Wikipedia' && l.dopo.includes('it.wikipedia.org'))) fails.push('in stampa il link dentro il luogo non mostra l\'indirizzo');
+    if (link.some(l => l.sott !== 'none')) fails.push('in stampa un link resta sottolineato');
+    if (link.find(l => l.testo.startsWith('https://example.org'))?.dopo !== 'none' ) fails.push('in stampa l\'indirizzo si ripete dopo un\'etichetta che e\' gia\' l\'indirizzo');
+    const fa = await p.$$eval('.fonti-sezione .racconto .fonti li', l => l.map(x => x.textContent));
+    if (!fa.some(x => x.includes('Wikipedia') && x.includes('https://it.wikipedia.org/wiki/Monte_Serra'))) fails.push('fonte dell\'assistente senza titolo e indirizzo');
+    await p.close();
+  }
+}
 
 const page2 = await apri('1970-01-01T00:00:00Z');
 if (!(await page2.textContent('#scheda')).includes('I dati sono cambiati da quando questo giro è stato progettato'))

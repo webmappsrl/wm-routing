@@ -22,7 +22,14 @@ export function resolveSchedaPoi(resolvePoi, list) {
   } catch { return {...vuoto, poiNonDisponibili: true}; }
 }
 
-export function datiScheda({route, blob, resolvePoi, dataStamp}) {
+// Il link al GPX lo compone il server dal blob ricevuto, non il client: e'
+// l'indirizzo che finisce sul foglio stampato e nel codice QR.
+export function linkGpxDi(publicUrl, t) {
+  if (!publicUrl || !t) return null;
+  return `${String(publicUrl).replace(/\/+$/, '')}/g/gpx?t=${encodeURIComponent(String(t))}`;
+}
+
+export function datiScheda({route, blob, resolvePoi, dataStamp, linkGpx = null}) {
   const c = compactRoute(route);
   let stampCorrente = null;
   try { stampCorrente = dataStamp?.().osm ?? null; } catch { /* nessun banner */ }
@@ -30,7 +37,7 @@ export function datiScheda({route, blob, resolvePoi, dataStamp}) {
     profilo: c.profilo, distanzaKm: c.distanzaKm, salitaM: c.salitaM, discesaM: c.discesaM,
     oreDIN33466: c.oreDIN33466, quotaMinMaxM: c.quotaMinMaxM, tappe: c.tappe, sentieri: c.sentieri,
     geometry: route.geometry, stamp: blob.stamp, stampCorrente,
-    avvertenza: WARNING,
+    avvertenza: WARNING, linkGpx,
     ...resolveSchedaPoi(resolvePoi, blob.poi),
   };
 }

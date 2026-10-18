@@ -6,7 +6,7 @@ import {readFileSync} from 'node:fs';
 import express from 'express';
 import {decodeLink} from './link.js';
 import {toGpx} from './gpx.js';
-import {datiScheda} from './dati-scheda.js';
+import {datiScheda, linkGpxDi} from './dati-scheda.js';
 import {validPoints, sendError} from '../route.js';
 import {createRateLimiter} from '../rate-limit.js';
 import {logEvent} from '../log.js';
@@ -18,7 +18,7 @@ const ALTERATO = 'Questo link è stato alterato o troncato: non fidarti del giro
 
 const PREVIEW_DIR = process.env.WM_PREVIEW ?? new URL('../../../preview', import.meta.url).pathname;
 
-export function makeGRouter({compute, shard, bbox, key, resolvePoi, dataStamp, previewDir = PREVIEW_DIR,
+export function makeGRouter({publicUrl = '', compute, shard, bbox, key, resolvePoi, dataStamp, previewDir = PREVIEW_DIR,
                              rate = {capacity: 60, perSecond: 2}}) {
   const router = express.Router();
   // i link sono condivisibili per design e /g/gpx costa un calcolo del motore:
@@ -98,7 +98,7 @@ export function makeGRouter({compute, shard, bbox, key, resolvePoi, dataStamp, p
     if (b) {
       try {
         const r = await compute(shard, b.profile, b.points, {checkSnap: false});
-        res.set('Cache-Control', 'no-store').json(datiScheda({route: r, blob: b, resolvePoi, dataStamp}));
+        res.set('Cache-Control', 'no-store').json(datiScheda({route: r, blob: b, resolvePoi, dataStamp, linkGpx: linkGpxDi(publicUrl, req.query.t)}));
       } catch (e) { sendError(res, e); }
     }
     logEvent({route: '/g/scheda.json', status: res.statusCode, ms: Date.now() - t0});

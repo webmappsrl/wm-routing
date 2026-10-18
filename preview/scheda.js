@@ -63,12 +63,65 @@ function riquadro(titolo, html, conAvviso = true, primo = false) {
     `${conAvviso ? `<span>${esc(avviso(primo))}</span>` : ''}</p><div class="corpo">${html}</div></section>`;
 }
 // Solo http/https: l'url finisce in un href e il file puo' essere stato alterato.
-// Il Task 7 puo' riprendere questa lista per la sezione completa delle fonti.
 function fontiHtml(fonti) {
   const voci = (Array.isArray(fonti) ? fonti : []).filter(f => f && testo(String(f.titolo ?? '')) && /^https?:\/\//i.test(f.url ?? ''))
-    .map(f => `<li>${esc(f.titolo)} <span class="url">${esc(f.url)}</span></li>`);
+    .map(f => `<li><strong>${esc(f.titolo)}</strong><br><span class="url">${esc(f.url)}</span></li>`);
   return voci.length ? `<ul class="fonti">${voci.join('')}</ul>` : '';
 }
+// --- GPX, codice QR e fonti ----------------------------------------------------
+// Su un foglio stampato un link non si clicca: l'indirizzo e' sempre scritto per
+// esteso, e il codice QR e' un di piu' che c'e' solo se si legge davvero.
+// Il blob firmato e' lungo (con 20 punti di interesse supera i 2900 caratteri, piu'
+// di quanto un QR contenga): oltre QR_MAX_MODULI per lato i moduli stampati
+// diventano piu' piccoli di quanto una carta comune e una fotocamera reggano, e
+// un quadratino illeggibile e' peggio di niente. Soglia misurata, vedi il report del Task 7.
+const QR_MAX_MODULI = 101;      // versione 21: circa 5 punti di interesse
+const QR_LATO_MM = 55;
+const AVVISO_GPX = 'Il file GPX si ricalcola sul grafo del momento in cui lo scarichi: se questo foglio ha qualche giorno, il tracciato scaricato potrebbe non coincidere con quello stampato.';
+const solo = u => (/^https?:\/\//i.test(u ?? '') ? u : '');
+
+// Disegna il QR come SVG (vettoriale: in stampa i moduli restano netti). Ritorna ''
+// se la libreria non c'e' (documento aperto senza rete), se l'indirizzo non entra
+// o se il codice verrebbe troppo fitto: in tutti i casi resta l'indirizzo scritto.
+function qrSvg(url) {
+  try {
+    if (typeof qrcode !== 'function') return '';
+    const q = qrcode(0, 'L');
+    q.addData(url, 'Byte');
+    q.make();
+    const n = q.getModuleCount();
+    if (n > QR_MAX_MODULI) return '';
+    let path = '';
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (q.isDark(y, x)) path += `M${x + 4} ${y + 4}h1v1h-1z`;
+    const lato = n + 8;   // quiet zone di 4 moduli, come da specifica
+    return `<svg class="qr" viewBox="0 0 ${lato} ${lato}" width="${QR_LATO_MM}mm" height="${QR_LATO_MM}mm" role="img" ` +
+      `aria-label="Codice QR del link al file GPX" shape-rendering="crispEdges"><rect width="${lato}" height="${lato}" fill="#fff"/>` +
+      `<path d="${path}" fill="#000"/></svg>`;
+  } catch { return ''; }
+}
+
+function gpxHtml(link) {
+  const url = solo(link);
+  if (!url) return '';
+  return `<section class="gpx"><h2>Il percorso come file GPX</h2>` +
+    `<p>Scarica il file e caricalo dove preferisci (app di navigazione, orologio, sito di mappe).</p>` +
+    `<div class="gpx-corpo">${qrSvg(url) ? `<div class="qr-box">${qrSvg(url)}<p class="didascalia">Inquadra il codice con il telefono.</p></div>` : ''}` +
+    `<div class="gpx-testo"><p class="indirizzo">${esc(url)}</p><p class="avviso-gpx">${esc(AVVISO_GPX)}</p></div></div></section>`;
+}
+
+// Le fonti, divise come il resto del documento: le nostre e quelle dell'assistente.
+// Titolo e indirizzo per esteso, mai una parola sottolineata: sulla carta non si clicca.
+function fonteHtml(titolo, descrizione, url) {
+  return `<li><strong>${esc(titolo)}</strong>${descrizione ? `, ${esc(descrizione)}` : ''}` +
+    `${url ? `<br><span class="url">${esc(url)}</span>` : ''}</li>`;
+}
+function fontiNostreHtml(stamp) {
+  return `<section class="fonti-nostre"><p class="etichetta"><strong>Fonti di Webmapp</strong></p><ul class="fonti">` +
+    fonteHtml('OpenStreetMap', `percorso, sentieri e punti di interesse, dati del ${dataIt(stamp)} (© contributori di OpenStreetMap, licenza ODbL)`, 'https://www.openstreetmap.org/copyright') +
+    fonteHtml('DIN 33466', 'formula dei tempi di cammino, calcolata da Webmapp sul profilo altimetrico', 'https://www.din.de') +
+    `</ul></section>`;
+}
+
 function raccontoDi(r) {
   const o = r && typeof r === 'object' ? r : {};
   const luoghi = o.luoghi && typeof o.luoghi === 'object' ? o.luoghi : {};
@@ -227,12 +280,22 @@ function render(d) {
     ${sentieri ? `<section><h2>Sentieri</h2><table id="sentieri"><thead><tr><th>Numero</th><th>Difficoltà</th><th>Lunghezza</th></tr></thead><tbody>${sentieri}</tbody></table></section>` : ''}
     ${poi ? `<section><h2>Luoghi lungo il giro</h2>${haLuoghi && !r.introduzione ? `<p class="avviso-racconto">${esc(avviso(true))}</p>` : ''}${poi}</section>` : ''}
     ${r.consigli ? riquadro('Consigli dell’assistente', r.consigli, true, !r.introduzione && !haLuoghi) : ''}
-    ${r.fonti ? riquadro('Fonti citate dall’assistente', r.fonti, false) : ''}
+    ${gpxHtml(d.linkGpx)}
+    <section class="fonti-sezione">
+      <h2>Fonti</h2>
+      ${fontiNostreHtml(d.stamp)}
+      ${r.fonti ? riquadro('Fonti citate dall’assistente', r.fonti, false) : ''}
+    </section>
     <footer>
       <p>${esc(d.avvertenza)}</p>
-      <p>Punti di interesse: OpenStreetMap, dati del ${dataIt(d.stamp)}.</p>
       ${d.poi.some(p => p.nota) ? '<p>Le note sono scritte dall’assistente, non da Webmapp.</p>' : ''}
     </footer>`;
+  // in stampa un link mostra solo l'etichetta: l'indirizzo si scrive fra parentesi
+  // (lo mette il CSS di stampa da questo attributo), tranne quando l'etichetta e' gia' l'indirizzo
+  document.querySelectorAll('#scheda .corpo a[href], #scheda .racconto-luogo a[href]').forEach(a => {
+    const h = a.getAttribute('href');
+    if (a.textContent.trim().replace(/\/$/, '') !== h.replace(/\/$/, '')) a.dataset.indirizzo = h;
+  });
   const foto = d.poiNonDisponibili ? Promise.resolve() : caricaFoto(d);
   // il foglio parte quando le foto in volo sono arrivate, ma mai oltre il timeout:
   // se Wikimedia non risponde si stampa senza

@@ -1,5 +1,5 @@
 import {it, expect} from 'vitest';
-import {datiScheda} from '../src/mcp/dati-scheda.js';
+import {datiScheda, linkGpxDi} from '../src/mcp/dati-scheda.js';
 import {WARNING} from '../src/route.js';
 
 const geometry = {type: 'LineString', coordinates: [[10.1, 43.1, 100], [10.15, 43.15, 150], [10.2, 43.2, 200]]};
@@ -18,9 +18,9 @@ const resolvePoi = ids => ({
 const dataStamp = () => ({osm: stamp});
 
 it('restituisce i campi della scheda, con i poi risolti', () => {
-  const d = datiScheda({route, blob, resolvePoi, dataStamp});
+  const d = datiScheda({route, blob, resolvePoi, dataStamp, linkGpx: 'https://x.it/g/gpx?t=abc'});
   expect(Object.keys(d)).toEqual(['profilo', 'distanzaKm', 'salitaM', 'discesaM', 'oreDIN33466',
-    'quotaMinMaxM', 'tappe', 'sentieri', 'geometry', 'stamp', 'stampCorrente', 'avvertenza',
+    'quotaMinMaxM', 'tappe', 'sentieri', 'geometry', 'stamp', 'stampCorrente', 'avvertenza', 'linkGpx',
     'poi', 'poiMancanti', 'poiNonDisponibili']);
   expect(d.distanzaKm).toBe(12.35);
   expect(d.salitaM).toBe(600);
@@ -59,4 +59,16 @@ it('un POI senza identificatori wiki non porta i campi', () => {
   const d = datiScheda({route, blob, resolvePoi: senza, dataStamp});
   expect('wikipedia' in d.poi[0]).toBe(false);
   expect('wikidata' in d.poi[0]).toBe(false);
+});
+
+it('linkGpxDi: indirizzo assoluto dal blob, codificato una volta sola', () => {
+  expect(linkGpxDi('https://r.example', 'ab+c/d=.xy')).toBe('https://r.example/g/gpx?t=ab%2Bc%2Fd%3D.xy');
+  // senza indirizzo pubblico o senza blob non si inventa un link
+  expect(linkGpxDi('', 'abc')).toBeNull();
+  expect(linkGpxDi('https://r.example', '')).toBeNull();
+});
+
+it('datiScheda: linkGpx passa com\'e\', null se manca', () => {
+  expect(datiScheda({route, blob, resolvePoi, dataStamp}).linkGpx).toBeNull();
+  expect(datiScheda({route, blob, resolvePoi, dataStamp, linkGpx: 'u'}).linkGpx).toBe('u');
 });

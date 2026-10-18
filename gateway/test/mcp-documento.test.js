@@ -170,3 +170,12 @@ it('niente di scritto dal modello resta sul server fra due chiamate', async () =
   const r = await f({t: t()});
   expect(r.documento).not.toContain('primo testo');
 });
+
+it('i dati inline portano il link al GPX, composto dal server sul blob ricevuto', async () => {
+  const r = await tool()({t: t()});
+  const d = JSON.parse(r.documento.match(/<script type="application\/json" id="dati-giro">([\s\S]*?)<\/script>/)[1]);
+  expect(d.linkGpx).toBe(`${base}/g/gpx?t=${t()}`);
+  // anche se l'assistente passa il blob gia' decodificato
+  const r2 = await tool()({t: decodeURIComponent(t())});
+  expect(JSON.parse(r2.documento.match(/<script type="application\/json" id="dati-giro">([\s\S]*?)<\/script>/)[1]).linkGpx).toBe(`${base}/g/gpx?t=${t()}`);
+});

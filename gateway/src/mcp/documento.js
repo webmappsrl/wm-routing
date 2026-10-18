@@ -12,7 +12,7 @@
 // (scheletro, CSS, JavaScript), che sono nostri e si leggono una volta sola.
 import {readFileSync} from 'node:fs';
 import {decodeLink, LinkError} from './link.js';
-import {datiScheda} from './dati-scheda.js';
+import {datiScheda, linkGpxDi} from './dati-scheda.js';
 import {makeResolvePoi} from './poi.js';
 import {renderMarkdown, MAX_MARKDOWN} from './markdown.js';
 
@@ -103,7 +103,7 @@ const fontiValide = fonti => (Array.isArray(fonti) ? fonti : [])
   .slice(0, MAX_FONTI)
   .map(f => ({titolo: f.titolo.slice(0, MAX_TITOLO), url: f.url}));
 
-export function makeDocumentoTool({gatewayUrl, linkKey, fetchFn = fetch,
+export function makeDocumentoTool({gatewayUrl, publicUrl = gatewayUrl, linkKey, fetchFn = fetch,
                                    waysDbPath = '', previewDir = PREVIEW_DIR,
                                    resolvePoi = makeResolvePoi({waysDbPath})}) {
   return async function documentoTool({t, introduzione, luoghi = [], consigli, fonti = []}) {
@@ -132,7 +132,8 @@ export function makeDocumentoTool({gatewayUrl, linkKey, fetchFn = fetch,
     } catch { return {stato: 'gateway_non_raggiungibile'}; }
     const v = await fetchFn(`${gatewayUrl}/v1/version`).then(x => x.json()).catch(() => null);
 
-    const dati = datiScheda({route, blob, resolvePoi, dataStamp: v ? () => v : undefined});
+    const dati = datiScheda({route, blob, resolvePoi, dataStamp: v ? () => v : undefined,
+      linkGpx: linkGpxDi(publicUrl, /%/.test(String(t)) ? decodeURIComponent(t) : t)});
     // un guasto del database non e' un POI sparito: non va raccontato come tale
     if (dati.poiNonDisponibili) return {stato: 'dati_non_disponibili'};
 
