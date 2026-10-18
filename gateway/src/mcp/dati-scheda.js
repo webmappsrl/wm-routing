@@ -14,7 +14,8 @@ export function resolveSchedaPoi(resolvePoi, list) {
     if (r.errore) return {...vuoto, poiNonDisponibili: true};
     const note = new Map(list.map(x => [x.osmId, x.nota]));
     return {
-      poi: r.trovati.map(t => ({osmId: t.osmId, name: t.name, kind: t.kind, ele: t.ele, lonLat: [t.lon, t.lat], nota: note.get(t.osmId)})),
+      poi: r.trovati.map(t => ({osmId: t.osmId, name: t.name, kind: t.kind, ele: t.ele, lonLat: [t.lon, t.lat], nota: note.get(t.osmId),
+        ...(t.wikipedia ? {wikipedia: t.wikipedia} : {}), ...(t.wikidata ? {wikidata: t.wikidata} : {})})),
       poiMancanti: (r.mancanti?.length ?? 0) + (r.nonValidi ?? 0),
       poiNonDisponibili: false,
     };

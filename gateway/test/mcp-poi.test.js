@@ -68,8 +68,12 @@ it('resolvePoi: due id esistenti risolti nell\'ordine passato, dati dal database
   expect(r.mancanti).toEqual([]);
   expect(r.trovati).toEqual([
     {osmId: 2, name: 'Fonte di Prova', kind: 'drinking_water', ele: 300, lon: 10.502, lat: 43.750},
-    {osmId: 1, name: 'Monte Prova', kind: 'peak', ele: 917, lon: 10.501, lat: 43.751},
+    {osmId: 1, name: 'Monte Prova', kind: 'peak', ele: 917, lon: 10.501, lat: 43.751,
+      wikipedia: 'it:Monte Prova', wikidata: 'Q1'},
   ]);
+  // niente identificatore: il campo non c'e' proprio
+  expect('wikipedia' in r.trovati[0]).toBe(false);
+  expect('wikidata' in r.trovati[0]).toBe(false);
   expect(JSON.stringify(r)).not.toMatch(/horse/i);
 });
 

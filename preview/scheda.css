@@ -33,6 +33,9 @@ button { font: inherit; padding: .5rem 1rem; border: 0; border-radius: .4rem; ba
 .avviso-racconto { margin: 0 0 .5rem; font-size: .85rem; font-style: italic; }
 .fonti { margin: 0; padding-left: 1.2rem; }
 .fonti .url { font-size: .8rem; color: #4a524e; word-break: break-all; }
+.foto { margin: 0 0 .5rem; max-width: 12rem; }
+.foto img { display: block; width: 100%; height: auto; max-height: 9rem; object-fit: cover; border: 1px solid #b9c0ba; }
+.foto figcaption { margin-top: .15rem; font-size: .7rem; line-height: 1.25; color: #4a524e; overflow-wrap: anywhere; }
 @media (max-width: 30rem) { th, td { padding: .3rem .25rem; } }
 
 @media print {
@@ -59,5 +62,8 @@ button { font: inherit; padding: .5rem 1rem; border: 0; border-radius: .4rem; ba
   .racconto-luogo { border-left-color: #000; }
   .racconto .corpo h2, .racconto-luogo h2 { font-size: 11pt; break-after: avoid; border: 0; }
   .fonti .url { color: #000; }
+  .foto { max-width: 34mm; break-inside: avoid; margin-bottom: 1.5mm; }
+  .foto img { max-height: 22mm; }
+  .foto figcaption { color: #000; font-size: 6.5pt; }
   h2 { border-bottom-color: #000; }
 }

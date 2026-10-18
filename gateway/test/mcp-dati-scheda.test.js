@@ -11,7 +11,8 @@ const stamp = '2026-10-08T20:21:06Z';
 const blob = {points: [[10.1, 43.1], [10.2, 43.2]], profile: 'libero', stamp,
   poi: [{osmId: 1, nota: 'Cima'}, {osmId: 99, nota: 'sparito'}]};
 const resolvePoi = ids => ({
-  trovati: [{osmId: 1, name: 'Monte Serra', kind: 'peak', ele: 917, lon: 10.5, lat: 43.75}],
+  trovati: [{osmId: 1, name: 'Monte Serra', kind: 'peak', ele: 917, lon: 10.5, lat: 43.75,
+    wikipedia: 'it:Monte Serra', wikidata: 'Q1'}],
   mancanti: ids.filter(i => i !== 1),
 });
 const dataStamp = () => ({osm: stamp});
@@ -28,7 +29,8 @@ it('restituisce i campi della scheda, con i poi risolti', () => {
   expect(d.stamp).toBe(stamp);
   expect(d.stampCorrente).toBe(stamp);
   expect(d.avvertenza).toBe(WARNING);
-  expect(d.poi).toEqual([{osmId: 1, name: 'Monte Serra', kind: 'peak', ele: 917, lonLat: [10.5, 43.75], nota: 'Cima'}]);
+  expect(d.poi).toEqual([{osmId: 1, name: 'Monte Serra', kind: 'peak', ele: 917, lonLat: [10.5, 43.75], nota: 'Cima',
+    wikipedia: 'it:Monte Serra', wikidata: 'Q1'}]);
   expect(d.poiMancanti).toBe(1);
   expect(d.poiNonDisponibili).toBe(false);
 });
@@ -50,4 +52,11 @@ it('senza resolvePoi, dataStamp o poi nel blob: poi vuoto e stampCorrente null',
   expect(d.poi).toEqual([]);
   expect(d.poiNonDisponibili).toBe(false);
   expect(d.stampCorrente).toBeNull();
+});
+
+it('un POI senza identificatori wiki non porta i campi', () => {
+  const senza = () => ({trovati: [{osmId: 1, name: 'Fonte', kind: 'drinking_water', ele: null, lon: 10.5, lat: 43.75}], mancanti: []});
+  const d = datiScheda({route, blob, resolvePoi: senza, dataStamp});
+  expect('wikipedia' in d.poi[0]).toBe(false);
+  expect('wikidata' in d.poi[0]).toBe(false);
 });

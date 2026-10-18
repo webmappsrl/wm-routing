@@ -68,12 +68,16 @@ export function makeResolvePoi({waysDbPath}) {
     catch { return tuttiMancanti(); }
     try {
       let stmt;
-      try { stmt = db.prepare('select osm_id, name, kind, ele, lon, lat from poi where osm_id = ?'); }
+      try { stmt = db.prepare('select osm_id, name, kind, ele, lon, lat, wikipedia, wikidata from poi where osm_id = ?'); }
       catch { return tuttiMancanti(); }
       const trovati = [], mancanti = [];
       for (const id of ids) {
         const r = stmt.get(id);
-        if (r) trovati.push({osmId: r.osm_id, name: r.name, kind: r.kind, ele: r.ele, lon: r.lon, lat: r.lat});
+        if (r) // i tag wiki sono solo identificatori copiati da OSM: la pagina li usa per
+        // chiedere la miniatura; se mancano, i campi non ci sono
+        trovati.push({osmId: r.osm_id, name: r.name, kind: r.kind, ele: r.ele, lon: r.lon, lat: r.lat,
+          ...(r.wikipedia ? {wikipedia: r.wikipedia} : {}),
+          ...(r.wikidata ? {wikidata: r.wikidata} : {})});
         else mancanti.push(id);
       }
       return {trovati, mancanti, nonValidi};

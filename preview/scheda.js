@@ -79,6 +79,97 @@ function raccontoDi(r) {
   };
 }
 
+// --- foto dei luoghi ---------------------------------------------------------
+// La pagina, non il nostro server, chiede la miniatura a Wikipedia: nessuna
+// immagine passa da noi. Solo per identificatore (tag wikipedia o wikidata del
+// POI): la ricerca per posizione su Commons e' stata provata e scartata.
+// Le API mandano Access-Control-Allow-Origin: *, quindi funzionano anche dal
+// documento aperto da file:// (origine null). Senza autore e licenza,
+// l'immagine non si mostra: le miniature sono quasi sempre CC-BY-SA.
+const MAX_FOTO = 8;           // richieste per documento: oltre, la scheda non e' piu' una scheda
+const MINIATURA_PX = 400;     // dimensione ridotta: mai l'originale
+const WIKI_TIMEOUT_MS = 8000;
+const API = {
+  wiki: lang => `https://${lang}.wikipedia.org/w/api.php`,
+  commons: 'https://commons.wikimedia.org/w/api.php',
+  wikidata: 'https://www.wikidata.org/w/api.php',
+};
+const urlApi = (base, params) => `${base}?${new URLSearchParams({format: 'json', origin: '*', ...params})}`;
+async function chiediJson(url) {
+  const c = new AbortController();
+  const t = setTimeout(() => c.abort(), WIKI_TIMEOUT_MS);
+  try {
+    const r = await fetch(url, {signal: c.signal, referrerPolicy: 'no-referrer'});
+    return r.ok ? await r.json() : null;
+  } catch { return null; } finally { clearTimeout(t); }
+}
+// Il tag di OSM e' "lingua:Titolo", oppure (osmfeatures) un URL di Wikipedia.
+function titoloWiki(raw) {
+  if (typeof raw !== 'string' || !raw.trim()) return null;
+  let t = raw.trim();
+  const m = t.match(/^https?:\/\/([a-z]{2,3})\.wikipedia\.org\/wiki\/(.+)$/);
+  if (m) { try { t = `${m[1]}:${decodeURIComponent(m[2])}`; } catch { return null; } }
+  const [lang, titolo] = /^[a-z]{2,3}:/.test(t) ? t.split(/:(.+)/) : ['it', t];
+  return titolo?.trim() ? {lang, titolo: titolo.replace(/_/g, ' ').trim()} : null;
+}
+async function titoloDaWikidata(q) {
+  if (!/^Q\d{1,12}$/.test(q ?? '')) return null;
+  const j = await chiediJson(urlApi(API.wikidata, {action: 'wbgetentities', ids: q, props: 'sitelinks', sitefilter: 'itwiki|enwiki'}));
+  const sl = j?.entities?.[q]?.sitelinks;
+  const v = sl?.itwiki ? ['it', sl.itwiki.title] : sl?.enwiki ? ['en', sl.enwiki.title] : null;
+  return v ? {lang: v[0], titolo: v[1]} : null;
+}
+// L'HTML dei metadati (Artist) si riduce a testo con un parser che non esegue nulla.
+const soloTesto = h => {
+  if (typeof h !== 'string') return '';
+  const corpo = new DOMParser().parseFromString(h, 'text/html').body;
+  corpo.querySelectorAll('script, style').forEach(n => n.remove());   // il loro testo non e' autore
+  const t = (corpo.textContent ?? '').replace(/\s+/g, ' ').trim();
+  return t.length > 120 ? t.slice(0, 117) + '…' : t;
+};
+// Restituisce {src, autore, licenza} oppure null: tutti e tre i campi o niente.
+async function fotoDi(p) {
+  const t = titoloWiki(p.wikipedia) ?? await titoloDaWikidata(p.wikidata);
+  if (!t) return null;
+  const j = await chiediJson(urlApi(API.wiki(t.lang), {action: 'query', redirects: '1', prop: 'pageimages',
+    piprop: 'thumbnail|name', pithumbsize: String(MINIATURA_PX), titles: t.titolo}));
+  const pag = Object.values(j?.query?.pages ?? {})[0];
+  const src = pag?.thumbnail?.source, file = pag?.pageimage;
+  if (typeof src !== 'string' || typeof file !== 'string' || !/^https:\/\/(upload|thumb)\.wikimedia\.org\//.test(src)) return null;
+  const m = await chiediJson(urlApi(API.commons, {action: 'query', prop: 'imageinfo', iiprop: 'extmetadata',
+    iiextmetadatafilter: 'Artist|LicenseShortName', titles: `File:${file}`}));
+  const em = Object.values(m?.query?.pages ?? {})[0]?.imageinfo?.[0]?.extmetadata;
+  const autore = soloTesto(em?.Artist?.value), licenza = soloTesto(em?.LicenseShortName?.value);
+  // senza attribuzione l'immagine non si mostra
+  return autore && licenza ? {src, autore, licenza} : null;
+}
+function caricaFoto(d) {
+  for (const p of d.poi.filter(x => x.wikipedia || x.wikidata).slice(0, MAX_FOTO)) {
+    fotoDi(p).then(f => {
+      const cella = document.querySelector(`[data-poi="${p.osmId}"]`);
+      if (!f || !cella) return;
+      const fig = document.createElement('figure');
+      fig.className = 'foto';
+      const img = document.createElement('img');
+      img.alt = `Foto di ${p.name ?? 'un luogo'}`;
+      // se l'immagine non si scarica, sparisce anche l'attribuzione: niente riquadro vuoto
+      img.addEventListener('error', () => fig.remove());
+      img.src = f.src;
+      const cap = document.createElement('figcaption');
+      cap.textContent = `Foto: ${f.autore}, ${f.licenza}, da Wikipedia`;
+      fig.append(img, cap);
+      cella.prepend(fig);
+      // la riga sulle foto compare solo se almeno una c'e'
+      if (!document.getElementById('nota-foto')) {
+        const n = document.createElement('p');
+        n.id = 'nota-foto';
+        n.textContent = 'Le foto dei luoghi vengono da Wikipedia e Wikimedia Commons: autore e licenza sono scritti sotto ogni foto.';
+        document.querySelector('footer')?.append(n);
+      }
+    }).catch(() => {});
+  }
+}
+
 function render(d) {
   const r = raccontoDi(d.racconto);
   // le descrizioni che compaiono davvero: quelle di POI presenti nella tabella
@@ -94,7 +185,7 @@ function render(d) {
   } else if (d.poi.length) {
     poi = `<table><thead><tr><th>Luogo</th><th>Quota</th><th>Nota dell’assistente</th></tr></thead><tbody>` +
       d.poi.map(p => `<tr><td><strong>${esc(p.name)}</strong>${TIPI_POI[p.kind] ? `<br><span class="tipo">${esc(TIPI_POI[p.kind])}</span>` : ''}</td>` +
-        `<td class="num">${p.ele != null ? `${fmt(p.ele, 0)} m` : '—'}</td><td>${esc(p.nota ?? '')}${r.luogo(p.osmId) ? `<div class="racconto-luogo"><p class="etichetta"><strong>L’assistente racconta</strong></p>${r.luogo(p.osmId)}</div>` : ''}</td></tr>`).join('') +
+        `<td class="num">${p.ele != null ? `${fmt(p.ele, 0)} m` : '—'}</td><td data-poi="${esc(p.osmId)}">${esc(p.nota ?? '')}${r.luogo(p.osmId) ? `<div class="racconto-luogo"><p class="etichetta"><strong>L’assistente racconta</strong></p>${r.luogo(p.osmId)}</div>` : ''}</td></tr>`).join('') +
       '</tbody></table>';
     if (d.poiMancanti) poi += `<p class="avviso">${d.poiMancanti === 1 ? 'Un punto scelto non è più presente' : `${d.poiMancanti} punti scelti non sono più presenti`} nei dati.</p>`;
   } else if (d.poiMancanti) {
@@ -136,6 +227,7 @@ function render(d) {
       <p>Punti di interesse: OpenStreetMap, dati del ${dataIt(d.stamp)}.</p>
       ${d.poi.some(p => p.nota) ? '<p>Le note sono scritte dall’assistente, non da Webmapp.</p>' : ''}
     </footer>`;
+  if (!d.poiNonDisponibili) caricaFoto(d);
   $('stampa').addEventListener('click', () => window.print());
   const profilo = () => disegnaProfilo($('profilo'), [{c: d.geometry.coordinates, colore: '#d0021b'}]);
   profilo();

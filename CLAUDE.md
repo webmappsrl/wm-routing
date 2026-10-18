@@ -24,6 +24,7 @@ identificatori nel codice in inglese.
 | preview | `cd gateway && node scripts/preview-check.mjs` |
 | preview spiegata e su telefono | `cd gateway && node scripts/preview-ux-check.mjs && node scripts/preview-mobile-check.mjs [url] ["iPhone SE"]` |
 | accettazione MCP e scheda (gateway vivo) | `cd gateway && node scripts/mcp-check.mjs && node scripts/scheda-check.mjs` |
+| foto dei luoghi nel documento (Wikimedia simulata) | `cd gateway && node scripts/foto-check.mjs` |
 | confronto con la produzione | `node tools/compare.mjs --giro <nome>` |
 | costruire e scambiare il grafo | `bash tools/build-graph.sh <pbf> <terrain.pmtiles>` (runbook) |
 
