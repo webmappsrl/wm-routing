@@ -23,8 +23,8 @@ identificatori nel codice in inglese.
 | nessuna coordinata nei log | `bash tools/log-check.sh` |
 | preview | `cd gateway && node scripts/preview-check.mjs` |
 | preview spiegata e su telefono | `cd gateway && node scripts/preview-ux-check.mjs && node scripts/preview-mobile-check.mjs [url] ["iPhone SE"]` |
+| accettazione MCP e scheda (gateway vivo) | `cd gateway && node scripts/mcp-check.mjs && node scripts/scheda-check.mjs` |
 | confronto con la produzione | `node tools/compare.mjs --giro <nome>` |
-| controllo del servizio MCP | `cd gateway && node scripts/mcp-check.mjs` |
 | costruire e scambiare il grafo | `bash tools/build-graph.sh <pbf> <terrain.pmtiles>` (runbook) |
 
 ## Regole del repo

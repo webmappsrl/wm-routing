@@ -14,6 +14,7 @@ stessi dati OSM e DEM di [wm-tiles](https://github.com/webmappsrl/wm-tiles).
 cd gateway && npm test            # test del gateway
 bash engine/tests/smoke.sh        # motore sulla rete sintetica
 cd gateway && node scripts/mcp-check.mjs   # accettazione del servizio MCP (gateway vivo)
+cd gateway && node scripts/scheda-check.mjs   # accettazione della scheda del giro (Playwright)
 source tools/bbox.sh && docker compose up -d
 ```
 
