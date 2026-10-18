@@ -148,6 +148,13 @@ function disegnaMappa(d) {
 
 async function main() {
   try {
+    // documento salvato su disco: i dati sono gia' scritti nel blocco e non c'e' nulla da chiamare.
+    // Il modulo gira dopo il parsing, quindi il blocco e' gia' nel DOM.
+    const inline = (document.getElementById('dati-giro')?.textContent ?? '').trim();
+    if (inline) {
+      render(JSON.parse(inline)); // un file alterato cade nel catch: stesso avviso, nessuna ipotesi
+      return;
+    }
     const r = await fetch('/g/scheda.json' + location.search, {referrerPolicy: 'no-referrer'});
     if (!r.ok) throw new Error();
     render(await r.json());
