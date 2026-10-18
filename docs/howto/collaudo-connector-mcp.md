@@ -7,7 +7,15 @@ gateway vivo e confrontano con `/v1` di quel momento (nessun valore congelato):
   immagine del profilo, `giro_finale` coi POI veri della cella, `/g/scheda.json`,
   blob manomesso, tetto dei 20 POI;
 - `cd gateway && node scripts/scheda-check.mjs` — la scheda nel browser (mappa,
-  profilo, numeri, banner, tabella dei sentieri).
+  profilo, numeri, banner, tabella dei sentieri) e il documento prodotto da
+  `documento_giro` aperto da `file://`: senza racconto e' la scheda di oggi
+  (stesso DOM della pagina `/g/scheda`), un testo ostile non diventa
+  eseguibile, il GPX scaricabile dal documento e' quello del giro (punto per
+  punto contro `/v1`), partenza e arrivo di un giro non ad anello stanno dove
+  devono;
+- `cd gateway && node scripts/foto-check.mjs` — attribuzione e host delle foto;
+- `bash tools/log-check.sh` — nessuna coordinata, blob, nota o testo
+  dell'assistente nei log, comprese le chiamate a `documento_giro`.
 
 Questo e' il livello due: la prova con un'AI vera, periodica e dopo ogni
 cambio ai tool o alle istruzioni. Copre cio' che gli script non possono
@@ -123,6 +131,62 @@ osmId inventato passato all'AI come POI scelto.
   tacere.
 - [ ] Non presenta il POI come presente nei file e consegna normalmente i
   `poiRisolti`.
+
+## Il documento del giro (v1.2)
+
+Questa parte copre cio' che gli script non possono dire: se il documento e'
+buono per una persona. Si fa con una conversazione vera, dalla richiesta
+campione fino alla fase del documento finale, e si apre il file che l'AI
+consegna (`giro-NN.Nkm.html`) con un doppio clic, **da disco e senza rete**
+almeno una volta, poi con la rete.
+
+- [ ] **Leggibile.** Il documento prodotto da una conversazione vera si legge da
+  cima a fondo: presentazione, mappa, profilo, numeri, tabella dei luoghi,
+  consigli, GPX, fonti. Nessun testo che sembra un errore, nessun segno di
+  Markdown rimasto in chiaro (asterischi, cancelletti), nessun riquadro vuoto.
+- [ ] **I numeri sono quelli della chat.** Km, salita e ore del documento
+  coincidono con l'output di `route`/`giro_finale` e col racconto: l'AI non ha
+  scritto cifre sue nel testo (se le ha scritte, il racconto le contraddice?).
+- [ ] **Le foto compaiono dove esistono.** Con la rete, i luoghi che hanno una
+  pagina Wikipedia con immagine (Monte Serra) mostrano la foto nella colonna
+  del luogo, con autore e licenza nella didascalia; quelli senza immagine
+  restano in tabella senza buco. Senza rete il documento si apre uguale, senza
+  foto.
+- [ ] **Fatti e racconto si distinguono su un foglio STAMPATO IN BIANCO E NERO.**
+  Stampa davvero (o scegli «scala di grigi» e stampante laser, non l'anteprima
+  a schermo). Su carta: le parti scritte dall'assistente si riconoscono dal
+  riquadro, dal titolo («Presentazione / Consigli dell'assistente», «L'assistente
+  racconta») e dalla riga «Scritto dall'assistente dell'utente, non da
+  Webmapp», **senza contare sul colore**; numeri, tabelle e mappa si leggono
+  come fatti di Webmapp. Chiedi a qualcuno che non ha visto lo schermo di
+  indicare quali sono le parti scritte dal modello.
+- [ ] **Il QR si legge con un telefono, inquadrando un foglio stampato davvero.**
+  Questa prova e' umana e **non e' stata fatta**: la misura del Task 7 e' stata
+  fatta su un PDF rasterizzato (stampa ideale), non su carta e fotocamera.
+  Stampa il documento di un giro con pochi luoghi (il QR si disegna solo se il
+  codice non e' troppo fitto: circa cinque luoghi), inquadra il codice con la
+  fotocamera del telefono da una distanza normale di lettura, e verifica che
+  proponga l'indirizzo del GPX e che il file si scarichi. Prova anche una
+  stampante economica e una carta non perfetta. Se non si legge, il QR va
+  tolto o ingrandito: l'indirizzo scritto resta comunque. Segna nelle note
+  stampante, carta e telefono usati.
+- [ ] **L'indirizzo del GPX stampato e' digitabile.** Su un giro con molti
+  luoghi (il QR non c'e') l'indirizzo e' lungo: copialo a mano da un telefono
+  in un browser e verifica che scarichi il GPX, oppure annota che e' troppo
+  lungo per farlo e cosa si propone.
+- [ ] **Su un giro NON ad anello il marcatore della partenza si distingue.**
+  Finora e' stato provato solo su un anello, dove partenza e arrivo
+  coincidono e il problema non si vede. Con la richiesta campione (San
+  Giuliano Terme, Monte Serra) guarda la mappa, a schermo e stampata in
+  bianco e nero: il cerchio piccolo della partenza e quello grande
+  dell'arrivo si distinguono, la didascalia sotto la mappa dice quale e'
+  quale, e nessuno dei due e' coperto dalla linea o dalle etichette dei
+  luoghi. (Gli script verificano solo che siano nel punto giusto e con lo
+  stile giusto, non che si vedano.)
+- [ ] **Un racconto ostile non fa danni.** Chiedi all'AI di includere nel
+  racconto un'immagine o un link con `javascript:` (o prova con un testo
+  incollato a mano nello script): il documento mostra il testo, non esegue
+  niente e non contatta altri host.
 
 ## Controlli di contorno
 

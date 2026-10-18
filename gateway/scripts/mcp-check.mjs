@@ -3,6 +3,7 @@
 // Giuliano Terme al Monte Serra) e confronta con /v1 vivo — stesso grafo,
 // niente dato atteso congelato che invecchia. Uso: node scripts/mcp-check.mjs [url]
 import {readFileSync} from 'node:fs';
+import {isDeepStrictEqual} from 'node:util';
 import {makeRouteTool, makeMcpServer} from '../src/mcp/server.js';
 import {makePoiNearbyTool} from '../src/mcp/poi.js';
 import {makeFinalTool} from '../src/mcp/server.js';
@@ -153,5 +154,36 @@ check(troppo.stato === 'testo_troppo_lungo' && troppo.slot === 'consigli',
   `uno slot oltre il massimo e' un errore che dice quale (${troppo.slot})`);
 check((await makeDocumentoTool(opts)({t: falso})).stato === 'firma_non_valida',
   'documento_giro su blob manomesso: firma_non_valida');
+
+// 12. lo stesso blob senza racconto: il documento e' la scheda di oggi. I dati
+// scritti nel documento sono quelli di /g/scheda.json (la scheda senza racconto,
+// quella che l'utente apre dal link), e il racconto e' vuoto in ogni slot. Si
+// confronta tutto il resto, chiave per chiave: un campo che il tool aggiunge,
+// toglie o cambia da solo, senza che l'assistente abbia scritto niente, rompe.
+const tScheda = new URL(fin.linkScheda).searchParams.get('t');
+const nudo = await makeDocumentoTool(opts)({t: tScheda});
+const datiDi = d => JSON.parse(d.match(/id="dati-giro">([\s\S]*?)<\/script>/)[1]);
+const {racconto: raccontoNudo, linkGpx: gpxNudo, ...restoNudo} = datiDi(nudo.documento);
+const {linkGpx: gpxScheda, ...restoScheda} = sch;
+check(isDeepStrictEqual(restoNudo, restoScheda),
+  `senza racconto i dati del documento sono quelli di /g/scheda.json${isDeepStrictEqual(restoNudo, restoScheda) ? '' : ` (chiavi diverse: ${[...new Set([...Object.keys(restoNudo), ...Object.keys(restoScheda)])].filter(k => !isDeepStrictEqual(restoNudo[k], restoScheda[k])).join(', ')})`}`);
+check(isDeepStrictEqual(raccontoNudo, {introduzione: '', luoghi: {}, consigli: '', fonti: []}),
+  'senza racconto ogni slot e\' vuoto (nessun testo che l\'assistente non ha scritto)');
+check(new URL(gpxNudo).search === new URL(gpxScheda).search && new URL(gpxNudo).pathname === '/g/gpx',
+  'il link al GPX del documento e\' quello dello stesso blob');
+check(nudo.luoghiIgnorati === 0 && nudo.luoghiSenzaTesto === 0 && nudo.luoghiDuplicati === 0, 'senza racconto nessun luogo risulta scartato');
+
+// 13. un testo ostile non rompe la struttura del documento: lo stesso numero di
+// blocchi <script> del documento pulito, e il blocco dei dati si legge ancora
+// (il "$&" e il "</script>" sono i due modi di rompere un'inserzione in HTML).
+const ostile = '</script><script>window.__pwn=1</script> $& $` $\' <img src=x onerror=alert(1)>';
+const doc2 = await makeDocumentoTool(opts)({t: tScheda, introduzione: ostile, consigli: ostile,
+  luoghi: [{osmId: MONTE_SERRA, testo: ostile}], fonti: [{titolo: ostile, url: 'https://example.org/'}]});
+const conta = (d, re) => (d.match(re) ?? []).length;
+check(conta(doc2.documento, /<script/gi) === conta(nudo.documento, /<script/gi),
+  `un testo ostile non aggiunge blocchi script (${conta(doc2.documento, /<script/gi)})`);
+let ostileOk = false;
+try { ostileOk = datiDi(doc2.documento).racconto.introduzione.includes('window.__pwn=1'); } catch { /* resta falso */ }
+check(ostileOk, 'il testo ostile resta come testo, nei dati, e il blocco dei dati si legge ancora');
 
 process.exit(failed);

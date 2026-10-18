@@ -59,9 +59,13 @@ if [ -f .env ]; then
     # documento_giro riceve il blob e il testo scritto dall'assistente: ne' l'uno
     # ne' l'altro devono comparire nei log
     if [ -n "${BLOB_POI:-}" ]; then
-      curl -s -o /dev/null -X POST "$URL/mcp?t=$TOKEN" -H 'Content-Type: application/json' \
+      DOC=$(curl -s -X POST "$URL/mcp?t=$TOKEN" -H 'Content-Type: application/json' \
         -H 'Accept: application/json, text/event-stream' \
-        -d "{\"jsonrpc\":\"2.0\",\"id\":11,\"method\":\"tools/call\",\"params\":{\"name\":\"documento_giro\",\"arguments\":{\"t\":\"$BLOB_POI\",\"introduzione\":\"$TESTO\",\"luoghi\":[{\"osmId\":$OSMID,\"testo\":\"$TESTO\"}]}}}" || true
+        -d "{\"jsonrpc\":\"2.0\",\"id\":11,\"method\":\"tools/call\",\"params\":{\"name\":\"documento_giro\",\"arguments\":{\"t\":\"$BLOB_POI\",\"introduzione\":\"$TESTO\",\"luoghi\":[{\"osmId\":$OSMID,\"testo\":\"$TESTO\"}]}}}" || true)
+      # il percorso di successo deve girare davvero: se il tool rispondesse con un errore il testo
+      # non entrerebbe mai nel giro e l'assenza dai log non proverebbe niente
+      echo "$DOC" | grep -qF "doctype html" && echo "$DOC" | grep -qF "$TESTO" \
+        || { echo "!! documento_giro non ha prodotto il documento col testo dell'assistente: controllo non valido" >&2; exit 1; }
     fi
   fi
 fi
