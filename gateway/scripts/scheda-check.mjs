@@ -27,6 +27,50 @@ const PUBBLICO = 'https://r.example';
 const browser = await chromium.launch();
 const fails = [];
 const errors = [];
+
+// Pixel del colore del tracciato nel canvas del profilo (vedi la nota piu' sotto sulla soglia).
+// Serve sia sulla pagina viva sia sul documento da file://: li' il JavaScript e' appiattito dal bundler.
+async function controllaProfilo(p, dove) {
+  try {
+    await p.waitForSelector('#profilo', {timeout: 5000});
+    const rossi = await p.evaluate(() => {
+      const cv = document.getElementById('profilo');
+      const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+      let n = 0;
+      for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 200 && d[i] > 170 && d[i + 1] < 90 && d[i + 2] < 90) n++;
+      return {n, larghezza: cv.width};
+    });
+    const soglia = rossi.larghezza * 0.5;
+    if (rossi.n < soglia) fails.push(`${dove}: nel profilo manca il tracciato (${rossi.n} pixel rossi, ne servono ${soglia})`);
+  } catch { fails.push(`${dove}: manca il canvas del profilo`); }
+}
+// I numeri come li legge una persona, confrontati col JSON della scheda: un valore al posto di un altro
+// (la salita sotto "Distanza") ha le etichette giuste e i numeri sbagliati.
+async function controllaNumeri(p, dove, t) {
+  const j = await fetch(`${base}/g/scheda.json?t=${t}`).then(r => r.json());
+  const riga = await p.$$eval('table.numeri tr', trs => Object.fromEntries(trs.map(tr => [tr.cells[0].textContent.trim(), tr.cells[1].textContent.trim()])));
+  const num = x => parseFloat(String(x).replace(/\./g, '').replace(',', '.'));
+  const ore = h => { const m = Math.round(h * 60); return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')} min`; };
+  const attesi = {Distanza: j.distanzaKm, Salita: Math.round(j.salitaM), Discesa: Math.round(j.discesaM)};
+  for (const [k, v] of Object.entries(attesi))
+    if (!(Math.abs(num(riga[k]) - v) < 0.006)) fails.push(`${dove}: "${k}" mostra "${riga[k]}", il giro dice ${v}`);
+  if (riga['Tempo di cammino'] !== ore(j.oreDIN33466)) fails.push(`${dove}: "Tempo di cammino" mostra "${riga['Tempo di cammino']}", il giro dice ${ore(j.oreDIN33466)}`);
+  if (j.quotaMinMaxM) {
+    const q = (riga['Quota minima e massima'] ?? '').split('–').map(num);
+    if (q.length !== 2 || Math.abs(q[0] - Math.round(j.quotaMinMaxM[0])) > 0.6 || Math.abs(q[1] - Math.round(j.quotaMinMaxM[1])) > 0.6)
+      fails.push(`${dove}: "Quota minima e massima" mostra "${riga['Quota minima e massima']}"`);
+  }
+}
+const AVVISO_BREVE = 'Scritto dall’assistente dell’utente, non da Webmapp: rileggilo prima di partire.';
+// Un riquadro dell'assistente: esiste col suo titolo, col testo e, dove deve, con la riga che lo attribuisce.
+async function controllaRiquadro(p, dove, selettore, titolo, testo, conAvviso) {
+  const r = await p.$$eval(selettore, (els, t) => els.filter(e => e.querySelector('.etichetta strong')?.textContent.trim() === t)
+    .map(e => ({testo: e.textContent, avviso: e.querySelector('.etichetta span')?.textContent ?? ''})), titolo);
+  if (r.length !== 1) return fails.push(`${dove}: il riquadro "${titolo}" compare ${r.length} volte, ne serve una`);
+  if (!r[0].testo.includes(testo)) fails.push(`${dove}: il riquadro "${titolo}" non contiene il testo dell'assistente`);
+  if (conAvviso && !r[0].avviso.includes(AVVISO_BREVE)) fails.push(`${dove}: il riquadro "${titolo}" non porta la riga "Scritto dall'assistente dell'utente, non da Webmapp"`);
+  if (!conAvviso && r[0].avviso) fails.push(`${dove}: il riquadro "${titolo}" ha una riga di attribuzione che non deve avere`);
+}
 async function apri(stamp) {
   const page = await browser.newPage({viewport: {width: Number(process.env.SCHEDA_LARGHEZZA ?? 900), height: 1200}});
   page.on('pageerror', e => errors.push(String(e)));
@@ -68,18 +112,8 @@ if (!await page.$('#mappa .ol-viewport canvas')) fails.push('manca il canvas del
 // pixel su un canvas da 704 px (la linea e' sottile: poco piu' di 1,5 pixel per colonna),
 // 893 a 600 px di pagina, 646 a 375 px. Con la linea assente sono 0. La soglia e' quindi
 // proporzionale alla larghezza del canvas (meta' dei pixel di larghezza), non assoluta.
-try {
-  await page.waitForSelector('#profilo', {timeout: 5000});
-  const rossi = await page.evaluate(() => {
-    const cv = document.getElementById('profilo');
-    const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
-    let n = 0;
-    for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 200 && d[i] > 170 && d[i + 1] < 90 && d[i + 2] < 90) n++;
-    return {n, larghezza: cv.width};
-  });
-  const soglia = rossi.larghezza * 0.5;
-  if (rossi.n < soglia) fails.push(`nel profilo manca il tracciato (${rossi.n} pixel rossi, ne servono ${soglia})`);
-} catch { fails.push('manca il canvas del profilo'); }
+await controllaProfilo(page, 'pagina viva');
+await controllaNumeri(page, 'pagina viva', encodeURIComponent(encodeLink({...giro, stamp: stampCorrente}, key)));
 
 // GPX, QR e fonti: indirizzo per esteso, QR per un giro con pochi luoghi, avvertenza, due parti di fonti
 const gpx = await page.$eval('.gpx .indirizzo', e => e.textContent).catch(() => null);
@@ -112,6 +146,7 @@ await page.close();
     waysDbPath: process.env.WM_WAYS_DB ?? new URL('../../data/ways.sqlite', import.meta.url).pathname})({t,
     introduzione: 'Vedi [il parco](https://www.parcosanrossore.it/) e [https://example.org/x](https://example.org/x).',
     luoghi: [{osmId: 1733141336, testo: 'Vedi [Wikipedia](https://it.wikipedia.org/wiki/Monte_Serra).'}],
+    consigli: 'CONSIGLIO-DI-PROVA: porta **acqua**.',
     fonti: [{titolo: 'Wikipedia', url: 'https://it.wikipedia.org/wiki/Monte_Serra'}]});
   if (doc.stato) fails.push(`documento_giro: ${doc.stato}`);
   else {
@@ -123,6 +158,16 @@ await page.close();
     await p.goto(`file://${file}`);
     await p.waitForSelector('table.numeri', {timeout: 30000});
     if (await p.$('svg.qr')) fails.push('senza rete il QR risulta disegnato');
+    // il racconto, riquadro per riquadro: titolo, testo e riga che lo attribuisce all'assistente
+    await controllaProfilo(p, 'documento da file');
+    await controllaNumeri(p, 'documento da file', t);
+    await controllaRiquadro(p, 'documento da file', '.racconto', 'Presentazione dell’assistente', 'Vedi il parco', true);
+    await controllaRiquadro(p, 'documento da file', '.racconto', 'Consigli dell’assistente', 'CONSIGLIO-DI-PROVA: porta acqua', true);
+    await controllaRiquadro(p, 'documento da file', '.racconto-luogo', 'L’assistente racconta', 'Vedi Wikipedia', false);
+    await controllaRiquadro(p, 'documento da file', '.racconto', 'Fonti citate dall’assistente', 'https://it.wikipedia.org/wiki/Monte_Serra', false);
+    if (!(await p.textContent('#scheda')).includes('Distanze, dislivelli, tempi e percorso, fuori da questi riquadri, sono calcolati da Webmapp'))
+      fails.push('documento da file: manca la frase che dice cosa garantisce Webmapp');
+    if (await p.$('.avviso-racconto')) fails.push('documento da file: con la presentazione l\'avviso dei luoghi non va ripetuto');
     const ind = (await p.textContent('.gpx .indirizzo').catch(() => '')).trim();
     if (!ind.startsWith(`${PUBBLICO}/g/gpx?t=`)) fails.push(`senza rete l'indirizzo del GPX non resta, o non e' quello pubblico (${ind.slice(0, 40)})`);
     if (ind.includes('127.0.0.1')) fails.push('sul foglio compare l\'indirizzo locale');
@@ -144,6 +189,15 @@ await page.close();
       const nomiGpx = [...gpxDoc.matchAll(/<wpt [^>]*>(?:<ele>[^<]*<\/ele>)?<name>([^<]*)<\/name>/g)]
         .map(m => m[1].replace(/&(lt|gt|amp|apos|quot);/g, (_, e) => ({lt: '<', gt: '>', amp: '&', apos: "'", quot: '"'}[e])));
       if (!nomiTabella.length || nomiTabella.some(n => !nomiGpx.includes(n))) fails.push('nel GPX del documento mancano luoghi che il documento elenca');
+      // coordinata e quota dei luoghi: quelle del database (via /g/scheda.json), mai quelle scritte dal modello
+      const schedaJ = await fetch(`${base}/g/scheda.json?t=${encodeURIComponent(decodeURIComponent(t))}`).then(r => r.json());
+      for (const poi of schedaJ.poi) {
+        const w = [...gpxDoc.matchAll(/<wpt lat="([^"]+)" lon="([^"]+)">(?:<ele>([^<]*)<\/ele>)?<name>([^<]*)<\/name>/g)]
+          .find(m => m[4].replace(/&apos;/g, "'") === poi.name);
+        if (!w) { fails.push(`nel GPX manca il <wpt> di ${poi.name}`); continue; }
+        if (+w[1] !== poi.lonLat[1] || +w[2] !== poi.lonLat[0]) fails.push(`nel GPX il <wpt> di ${poi.name} e' in un altro punto`);
+        if ((poi.ele == null) !== (w[3] === undefined) || (poi.ele != null && +w[3] !== poi.ele)) fails.push(`nel GPX il <wpt> di ${poi.name} ha un'altra quota`);
+      }
     } catch (e) { fails.push(`GPX del documento non confrontabile: ${e.message}`); }
     if (!(await p.textContent('.fonti-nostre')).includes('dati del')) fails.push('nelle fonti nostre manca la data dei dati');
     // in stampa: l'indirizzo accanto all'etichetta, nessuna sottolineatura; non raddoppia se l'etichetta e' l'indirizzo
@@ -194,11 +248,33 @@ const istantanea = p => p.evaluate(() => {
       fails.push(`senza racconto il documento non e' la scheda di oggi (primo scarto a ${i}: "${a.html.slice(i - 30, i + 50)}" contro "${b.html.slice(i - 30, i + 50)}")`);
     }
     if (a.titolo !== b.titolo) fails.push('senza racconto il titolo del documento cambia');
+    await controllaProfilo(p, 'documento senza racconto');
+    await controllaNumeri(p, 'documento senza racconto', t);
     const sezioniRacconto = await p.$$eval('.racconto, .racconto-luogo, .avviso-racconto', e => e.length);
     if (sezioniRacconto) fails.push(`senza racconto compaiono ${sezioniRacconto} riquadri dell'assistente`);
     await p.close();
   }
   await live.close();
+}
+
+// Senza presentazione ma con il racconto di un luogo, l'attribuzione all'assistente la porta l'avviso sopra la
+// tabella dei luoghi: e' la riga che distingue il racconto dai fatti, e deve esserci.
+{
+  const t = encodeURIComponent(encodeLink({...giro, stamp: stampCorrente}, key));
+  const doc = await makeDocumentoTool({...tOpts, publicUrl: PUBBLICO})({t,
+    luoghi: [{osmId: 1733141336, testo: 'SOLO-IL-LUOGO'}]});
+  const file = join(mkdtempSync(join(tmpdir(), 'wm-scheda-')), 'luogo.html');
+  writeFileSync(file, doc.documento ?? '');
+  const p = await browser.newPage();
+  p.on('pageerror', e => errors.push(String(e)));
+  await p.route(/^https?:\/\//, r => r.abort());
+  await p.goto(`file://${file}`);
+  await p.waitForSelector('table.numeri', {timeout: 30000});
+  const av = await p.$$eval('.avviso-racconto', e => e.map(x => x.textContent));
+  if (av.length !== 1 || !av[0].includes(AVVISO_BREVE) || !av[0].includes('Distanze, dislivelli, tempi e percorso'))
+    fails.push('senza presentazione, sopra i luoghi manca l\'avviso che attribuisce il racconto all\'assistente');
+  await controllaRiquadro(p, 'documento col solo luogo', '.racconto-luogo', 'L’assistente racconta', 'SOLO-IL-LUOGO', false);
+  await p.close();
 }
 
 // Un testo ostile, nel documento prodotto dal tool e aperto da file://, non diventa eseguibile: nessuno
@@ -226,6 +302,11 @@ const istantanea = p => p.evaluate(() => {
     await p.waitForSelector('table.numeri', {timeout: 30000});
     await p.waitForTimeout(500);
     if (!(await p.textContent('#scheda')).includes('PAROLA-VISIBILE')) fails.push('il documento ostile non mostra il testo come testo');
+    // ogni riquadro dell'assistente c'e' e porta il testo ostile come testo: titolo, parola e attribuzione
+    await controllaRiquadro(p, 'documento ostile', '.racconto', 'Presentazione dell’assistente', 'PAROLA-VISIBILE', true);
+    await controllaRiquadro(p, 'documento ostile', '.racconto', 'Consigli dell’assistente', 'PAROLA-VISIBILE', true);
+    const luoghiOstili = await p.$$eval('.racconto-luogo', e => e.filter(x => x.textContent.includes('PAROLA-VISIBILE')).length);
+    if (luoghiOstili !== 2) fails.push(`documento ostile: ${luoghiOstili} riquadri dei luoghi con il testo, ne servono 2`);
     const pwn = await p.evaluate(() => window.__pwn);
     if (pwn !== undefined) fails.push(`un testo ostile ha eseguito codice (__pwn=${pwn})`);
     const dentro = await p.evaluate(() => {
@@ -255,6 +336,21 @@ const istantanea = p => p.evaluate(() => {
   p.on('pageerror', e => errors.push(String(e)));
   await p.goto(`${base}/g/scheda?t=${t}`);
   await p.waitForSelector('table.numeri', {timeout: 30000});
+  // salita e discesa di un anello coincidono: lo scambio fra le due righe si vede solo su un giro lineare
+  await controllaNumeri(p, 'giro lineare, pagina viva', t);
+  {
+    const d = await makeDocumentoTool({...tOpts, publicUrl: PUBBLICO})({t: decodeURIComponent(t)});
+    const f = join(mkdtempSync(join(tmpdir(), 'wm-scheda-')), 'lineare.html');
+    writeFileSync(f, d.documento ?? '');
+    const q = await browser.newPage({viewport: {width: 900, height: 1200}});
+    q.on('pageerror', e => errors.push(String(e)));
+    await q.route(/^https?:\/\//, r => r.abort());
+    await q.goto(`file://${f}`);
+    await q.waitForSelector('table.numeri', {timeout: 30000});
+    await controllaNumeri(q, 'giro lineare, documento da file', t);
+    await controllaProfilo(q, 'giro lineare, documento da file');
+    await q.close();
+  }
   try {
     await p.waitForFunction(() => window.__schedaMappa?.getLayers().getArray().some(l => l.get('giro') && l.getSource().getFeatures().length),
       null, {timeout: 30000});

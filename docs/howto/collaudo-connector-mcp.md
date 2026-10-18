@@ -8,11 +8,16 @@ gateway vivo e confrontano con `/v1` di quel momento (nessun valore congelato):
   blob manomesso, tetto dei 20 POI;
 - `cd gateway && node scripts/scheda-check.mjs` — la scheda nel browser (mappa,
   profilo, numeri, banner, tabella dei sentieri) e il documento prodotto da
-  `documento_giro` aperto da `file://`: senza racconto e' la scheda di oggi
-  (stesso DOM della pagina `/g/scheda`), un testo ostile non diventa
-  eseguibile, il GPX scaricabile dal documento e' quello del giro (punto per
-  punto contro `/v1`), partenza e arrivo di un giro non ad anello stanno dove
-  devono;
+  `documento_giro` aperto da `file://`: i valori dei numeri (letti come li legge
+  una persona, su un anello e su un giro lineare, dove salita e discesa
+  differiscono) e il profilo (pixel del tracciato nel canvas) coincidono con
+  la scheda; ogni riquadro dell'assistente (presentazione, luoghi, consigli,
+  fonti) c'e', col suo testo e con la riga che lo attribuisce all'assistente;
+  senza racconto e' la scheda di oggi (stesso DOM della pagina `/g/scheda`);
+  un testo ostile non diventa eseguibile; il GPX scaricabile e' quello del
+  giro (traccia punto per punto contro `/v1`, luoghi con nome, posizione e
+  quota del database); partenza e arrivo di un giro non ad anello stanno
+  dove devono;
 - `cd gateway && node scripts/foto-check.mjs` — attribuzione e host delle foto;
 - `bash tools/log-check.sh` — nessuna coordinata, blob, nota o testo
   dell'assistente nei log, comprese le chiamate a `documento_giro`.
