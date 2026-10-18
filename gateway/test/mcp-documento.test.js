@@ -156,6 +156,21 @@ it('le fonti si filtrano prima di tagliare: una buona in fondo non si perde', as
   expect(d.racconto.fonti).toEqual([{titolo: 'buona', url: 'https://x.test/'}]);
 });
 
+it('l\'url di una fonte ha un tetto: 30 url enormi non fanno un documento enorme', async () => {
+  const fonti = Array.from({length: 30}, () => ({titolo: 'x', url: 'https://x.test/' + 'a'.repeat(50000)}));
+  const r = await tool()({t: t(), fonti});
+  const d = JSON.parse(r.documento.match(/id="dati-giro">([\s\S]*?)<\/script>/)[1]);
+  expect(d.racconto.fonti).toHaveLength(30);
+  expect(d.racconto.fonti.every(f => f.url.length === 500)).toBe(true);
+  expect(r.documento.length).toBeLessThan(400000);
+});
+
+it('la libreria del QR e\' dentro il documento, non da CDN', async () => {
+  const r = await tool()({t: t()});
+  expect(r.documento).toContain('QR Code Generator for JavaScript');
+  expect(r.documento).not.toMatch(/<script[^>]+qrcode/);
+});
+
 it('database dei POI guasto: dati_non_disponibili, non POI inesistenti', async () => {
   const r = await tool({resolvePoi: () => { throw new Error('db'); }})({t: t()});
   expect(r.stato).toBe('dati_non_disponibili');

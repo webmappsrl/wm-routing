@@ -51,9 +51,10 @@
   numeri. Il payload è un modulo condiviso (`dati-scheda.js`) fra la rotta
   `/g/scheda.json` e il tool. La scheda legge i dati **inline** se ci sono,
   altrimenti li chiede alla rotta; il documento li porta scritti dentro e
-  incorpora anche css e js, perché da `file://` un modulo ES con `src` esterno
-  non parte (CORS). Non è autosufficiente in tutto: mappa e codice QR usano
-  librerie da CDN, e senza rete restano numeri, profilo, tappe e racconto.
+  incorpora anche css, js e la libreria del QR (`preview/qrcode.js`,
+  `qrcode-generator` vendorizzato, MIT), perché da `file://` un modulo ES con
+  `src` esterno non parte (CORS). Non è autosufficiente in tutto: la mappa usa
+  librerie da CDN, e senza rete restano numeri, profilo, tappe, racconto e QR.
   Nella scheda, e quindi anche nel documento (del documento è solo il
   racconto con le sue fonti):
   - **foto dei luoghi** da Wikipedia **solo per identificatore**

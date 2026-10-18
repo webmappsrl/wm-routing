@@ -243,7 +243,7 @@ export function makeMcpServer(opts) {
   server.registerTool('documento_giro', {
     title: 'Documento del giro, col tuo racconto dentro',
     description: 'Dopo "giro_finale": compone il documento completo del giro, una pagina HTML ' +
-      'autosufficiente che l\'utente salva su disco e riapre anche senza rete. Accetta il blob "t" ' +
+      'autosufficiente che l\'utente salva su disco e riapre anche senza rete (senza rete la mappa non si vede, il resto sì: numeri, profilo, racconto, QR). Accetta il blob "t" ' +
       '(la parte dopo "?t=" di linkScheda, incollata intatta) e SOLO testo tuo in Markdown: ' +
       '"introduzione", "luoghi" (un testo per osmId), "consigli", "fonti" (titolo e url). ' +
       'NON accetta numeri, nomi, quote, coordinate ne\' geometria. Restituisce "documento" (l\'HTML da ' +
@@ -258,7 +258,7 @@ export function makeMcpServer(opts) {
       consigli: z.string().max(MAX_MARKDOWN).optional().describe('Consigli pratici, in Markdown'),
       fonti: z.array(z.object({
         titolo: z.string().describe('Titolo della fonte'),
-        url: z.string().describe('Indirizzo http o https della fonte'),
+        url: z.string().max(500).describe('Indirizzo http o https della fonte'),
       })).max(30).optional().describe('Le fonti che hai usato per il racconto'),
     },
   }, logged('documento_giro', documentoTool));

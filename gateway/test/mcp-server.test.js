@@ -204,6 +204,14 @@ it('giro_finale: lo schema zod limita l\'array dei POI e il tool produce la sua 
   expect(JSON.stringify(rows)).not.toMatch(/43\.7|10\.5/);
 });
 
+it('documento_giro: lo schema limita la lunghezza dell\'url di una fonte', () => {
+  const s = makeMcpServer({gatewayUrl: base, publicUrl: base, linkKey: key, waysDbPath: DB, fetchFn: fetchStamp});
+  const schema = s._registeredTools.documento_giro.inputSchema;
+  const fonte = url => schema.safeParse({t: 'x', fonti: [{titolo: 'f', url}]}).success;
+  expect(fonte('https://x.test/' + 'a'.repeat(100))).toBe(true);
+  expect(fonte('https://x.test/' + 'a'.repeat(600))).toBe(false);
+});
+
 it('giro_finale: database rotto o senza tabella -> dati_non_disponibili, non poi_non_trovati', async () => {
   const args = {points: pts, profile: 'escursionista', poi: [{osmId: SERRA}]};
   const senzaTabella = join(tmp, 'vuoto.sqlite');

@@ -139,7 +139,7 @@ await page.close();
   await p.close();
 }
 
-// il documento da file://, senza rete: il QR non si disegna, l'indirizzo resta, nessun errore
+// il documento da file://, senza rete: la libreria del QR e' dentro il file, quindi il QR c'e'; l'indirizzo resta, nessun errore
 {
   const t = encodeURIComponent(encodeLink({...giro, stamp: stampCorrente}, key));
   const doc = await makeDocumentoTool({gatewayUrl: base, publicUrl: PUBBLICO, linkKey: key,
@@ -157,7 +157,7 @@ await page.close();
     await p.route(/^https?:\/\//, r => r.abort());
     await p.goto(`file://${file}`);
     await p.waitForSelector('table.numeri', {timeout: 30000});
-    if (await p.$('svg.qr')) fails.push('senza rete il QR risulta disegnato');
+    if (!await p.$('.gpx svg.qr')) fails.push('senza rete il QR non e\' disegnato: la libreria deve stare dentro il documento');
     // il racconto, riquadro per riquadro: titolo, testo e riga che lo attribuisce all'assistente
     await controllaProfilo(p, 'documento da file');
     await controllaNumeri(p, 'documento da file', t);
@@ -165,9 +165,17 @@ await page.close();
     await controllaRiquadro(p, 'documento da file', '.racconto', 'Consigli dell’assistente', 'CONSIGLIO-DI-PROVA: porta acqua', true);
     await controllaRiquadro(p, 'documento da file', '.racconto-luogo', 'L’assistente racconta', 'Vedi Wikipedia', false);
     await controllaRiquadro(p, 'documento da file', '.racconto', 'Fonti citate dall’assistente', 'https://it.wikipedia.org/wiki/Monte_Serra', false);
-    if (!(await p.textContent('#scheda')).includes('Distanze, dislivelli, tempi e percorso, fuori da questi riquadri, sono calcolati da Webmapp'))
+    if (!(await p.textContent('#scheda')).includes('e tutto cio’ che non e’ marcato come scritto dall’assistente, sono calcolati da Webmapp'))
       fails.push('documento da file: manca la frase che dice cosa garantisce Webmapp');
-    if (await p.$('.avviso-racconto')) fails.push('documento da file: con la presentazione l\'avviso dei luoghi non va ripetuto');
+    // sopra i luoghi l'avviso c'e' SEMPRE (e' li' che l'assistente scrive di acqua e rifornimenti), ma breve:
+    // la frase lunga sta gia' nel primo riquadro della pagina, la presentazione
+    const avLuoghi = await p.$$eval('.avviso-racconto', e => e.map(x => x.textContent));
+    if (avLuoghi.length !== 1 || !avLuoghi[0].includes(AVVISO_BREVE))
+      fails.push('documento da file: sopra i luoghi manca l\'avviso breve, anche se c\'e\' la presentazione');
+    if (avLuoghi[0]?.includes('Distanze, dislivelli')) fails.push('documento da file: la frase lunga e\' ripetuta sopra i luoghi');
+    // le due parti delle fonti si distinguono a colpo d'occhio, non solo dal titolo
+    const cornici = await p.$$eval('.fonti-nostre, .fonti-sezione > .racconto', e => e.map(x => getComputedStyle(x).borderTopStyle));
+    if (cornici.length !== 2 || cornici[0] === cornici[1]) fails.push(`documento da file: i riquadri delle fonti hanno la stessa cornice (${cornici})`);
     const ind = (await p.textContent('.gpx .indirizzo').catch(() => '')).trim();
     if (!ind.startsWith(`${PUBBLICO}/g/gpx?t=`)) fails.push(`senza rete l'indirizzo del GPX non resta, o non e' quello pubblico (${ind.slice(0, 40)})`);
     if (ind.includes('127.0.0.1')) fails.push('sul foglio compare l\'indirizzo locale');
@@ -271,7 +279,7 @@ const istantanea = p => p.evaluate(() => {
   await p.goto(`file://${file}`);
   await p.waitForSelector('table.numeri', {timeout: 30000});
   const av = await p.$$eval('.avviso-racconto', e => e.map(x => x.textContent));
-  if (av.length !== 1 || !av[0].includes(AVVISO_BREVE) || !av[0].includes('Distanze, dislivelli, tempi e percorso'))
+  if (av.length !== 1 || !av[0].includes(AVVISO_BREVE) || !av[0].includes('Distanze, dislivelli, tempi e percorso, e tutto'))
     fails.push('senza presentazione, sopra i luoghi manca l\'avviso che attribuisce il racconto all\'assistente');
   await controllaRiquadro(p, 'documento col solo luogo', '.racconto-luogo', 'L’assistente racconta', 'SOLO-IL-LUOGO', false);
   await p.close();

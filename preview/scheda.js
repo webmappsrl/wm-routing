@@ -56,7 +56,7 @@ const testo = h => typeof h === 'string' && h.replace(/<[^>]*>/g, '').trim() ? h
 // Una riga breve in ogni parte dell'assistente (regge se il foglio si separa); la frase che
 // spiega cosa garantiamo noi compare una volta sola, nella prima parte della pagina.
 const AVVISO_BREVE = 'Scritto dall’assistente dell’utente, non da Webmapp: rileggilo prima di partire.';
-const AVVISO_GARANZIA = 'Distanze, dislivelli, tempi e percorso, fuori da questi riquadri, sono calcolati da Webmapp sui dati del giro.';
+const AVVISO_GARANZIA = 'Distanze, dislivelli, tempi e percorso, e tutto cio’ che non e’ marcato come scritto dall’assistente, sono calcolati da Webmapp sui dati del giro.';
 const avviso = primo => AVVISO_BREVE + (primo ? ' ' + AVVISO_GARANZIA : '');
 function riquadro(titolo, html, conAvviso = true, primo = false) {
   return `<section class="racconto"><p class="etichetta"><strong>${esc(titolo)}</strong>` +
@@ -279,7 +279,7 @@ function render(d) {
     </section>
     ${tappe ? `<section><h2>Tappe</h2><table><thead><tr><th>Punto</th><th>Km dalla partenza</th><th>Tempo</th></tr></thead><tbody>${tappe}</tbody></table></section>` : ''}
     ${sentieri ? `<section><h2>Sentieri</h2><table id="sentieri"><thead><tr><th>Numero</th><th>Difficoltà</th><th>Lunghezza</th></tr></thead><tbody>${sentieri}</tbody></table></section>` : ''}
-    ${poi ? `<section><h2>Luoghi lungo il giro</h2>${haLuoghi && !r.introduzione ? `<p class="avviso-racconto">${esc(avviso(true))}</p>` : ''}${poi}</section>` : ''}
+    ${poi ? `<section><h2>Luoghi lungo il giro</h2>${haLuoghi ? `<p class="avviso-racconto">${esc(avviso(!r.introduzione))}</p>` : ''}${poi}</section>` : ''}
     ${r.consigli ? riquadro('Consigli dell’assistente', r.consigli, true, !r.introduzione && !haLuoghi) : ''}
     ${gpxHtml(d.linkGpx)}
     <section class="fonti-sezione">

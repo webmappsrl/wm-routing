@@ -21,6 +21,7 @@ import {renderMarkdown, MAX_MARKDOWN} from './markdown.js';
 const MAX_LUOGHI = 30;
 const MAX_FONTI = 30;
 const MAX_TITOLO = 200;
+const MAX_URL = 500;
 
 // --- i file della preview, letti una volta per cartella (non a ogni chiamata) ---
 
@@ -52,6 +53,9 @@ function assets(previewDir) {
     a = {
       scheletro: readFileSync(`${previewDir}/scheda.html`, 'utf8'),
       css: readFileSync(`${previewDir}/scheda.css`, 'utf8'),
+      // qrcode-generator (MIT, vendorizzato): non e' un modulo ES ma uno script
+      // classico che definisce `qrcode`, quindi non passa da bundleModulo
+      qr: readFileSync(`${previewDir}/qrcode.js`, 'utf8'),
       js: bundleModulo(previewDir, 'scheda.js').join('\n'),
     };
     cache.set(previewDir, a);
@@ -80,6 +84,8 @@ function componi(previewDir, dati) {
   return a.scheletro
     .replace('<link rel="stylesheet" href="/preview/scheda.css">',
       () => `<style>\n${styleInline(a.css)}\n</style>`)
+    .replace('<script src="/preview/qrcode.js"></script>',
+      () => `<script>\n${scriptInline(a.qr)}\n</script>`)
     .replace('<script src="/preview/scheda.js" type="module"></script>',
       () => `<script type="module">\n${scriptInline(a.js)}\n</script>`)
     .replace('<script type="application/json" id="dati-giro"></script>',
@@ -101,7 +107,7 @@ const troppoLungo = (slot, testo) => {
 const fontiValide = fonti => (Array.isArray(fonti) ? fonti : [])
   .filter(f => f && typeof f.titolo === 'string' && typeof f.url === 'string' && /^https?:\/\//i.test(f.url))
   .slice(0, MAX_FONTI)
-  .map(f => ({titolo: f.titolo.slice(0, MAX_TITOLO), url: f.url}));
+  .map(f => ({titolo: f.titolo.slice(0, MAX_TITOLO), url: f.url.slice(0, MAX_URL)}));
 
 export function makeDocumentoTool({gatewayUrl, publicUrl = gatewayUrl, linkKey, fetchFn = fetch,
                                    waysDbPath = '', previewDir = PREVIEW_DIR,
