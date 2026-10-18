@@ -7,6 +7,8 @@ import {MAX_MARKDOWN} from '../src/mcp/markdown.js';
 const fixture = JSON.parse(readFileSync(new URL('./fixtures/v1-route.json', import.meta.url)));
 const key = 'chiave-di-prova';
 const base = 'http://127.0.0.1:8991';
+// diverso da gatewayUrl, come in produzione: il foglio non deve mai portare l'indirizzo locale
+const PUBBLICO = 'https://r.example';
 const previewDir = new URL('../../preview', import.meta.url).pathname;
 
 const fakeFetch = (routeReply = {ok: true, status: 200, json: async () => fixture}) => async url =>
@@ -30,7 +32,7 @@ const resolvePoi = ids => ({
 });
 
 const tool = (opts = {}) => makeDocumentoTool({
-  gatewayUrl: base, publicUrl: base, linkKey: key, previewDir, resolvePoi,
+  gatewayUrl: base, publicUrl: PUBBLICO, linkKey: key, previewDir, resolvePoi,
   fetchFn: fakeFetch(), ...opts,
 });
 
@@ -174,8 +176,15 @@ it('niente di scritto dal modello resta sul server fra due chiamate', async () =
 it('i dati inline portano il link al GPX, composto dal server sul blob ricevuto', async () => {
   const r = await tool()({t: t()});
   const d = JSON.parse(r.documento.match(/<script type="application\/json" id="dati-giro">([\s\S]*?)<\/script>/)[1]);
-  expect(d.linkGpx).toBe(`${base}/g/gpx?t=${t()}`);
+  expect(d.linkGpx).toBe(`${PUBBLICO}/g/gpx?t=${t()}`);
   // anche se l'assistente passa il blob gia' decodificato
   const r2 = await tool()({t: decodeURIComponent(t())});
-  expect(JSON.parse(r2.documento.match(/<script type="application\/json" id="dati-giro">([\s\S]*?)<\/script>/)[1]).linkGpx).toBe(`${base}/g/gpx?t=${t()}`);
+  expect(JSON.parse(r2.documento.match(/<script type="application\/json" id="dati-giro">([\s\S]*?)<\/script>/)[1]).linkGpx).toBe(`${PUBBLICO}/g/gpx?t=${t()}`);
+});
+
+it('linkGpx e\' l\'indirizzo pubblico, mai quello del gateway, e senza doppio slash', async () => {
+  const r = await tool({publicUrl: 'https://x.it/'})({t: t()});
+  const d = JSON.parse(r.documento.match(/<script type="application\/json" id="dati-giro">([\s\S]*?)<\/script>/)[1]);
+  expect(d.linkGpx).toBe(`https://x.it/g/gpx?t=${t()}`);
+  expect(d.linkGpx).not.toContain('127.0.0.1');
 });

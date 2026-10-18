@@ -61,6 +61,11 @@ it('un POI senza identificatori wiki non porta i campi', () => {
   expect('wikidata' in d.poi[0]).toBe(false);
 });
 
+it('linkGpxDi: slash finali dell\'indirizzo pubblico non raddoppiano', () => {
+  expect(linkGpxDi('https://r.example/', 'a')).toBe('https://r.example/g/gpx?t=a');
+  expect(linkGpxDi('https://r.example//', 'a')).toBe('https://r.example/g/gpx?t=a');
+});
+
 it('linkGpxDi: indirizzo assoluto dal blob, codificato una volta sola', () => {
   expect(linkGpxDi('https://r.example', 'ab+c/d=.xy')).toBe('https://r.example/g/gpx?t=ab%2Bc%2Fd%3D.xy');
   // senza indirizzo pubblico o senza blob non si inventa un link

@@ -22,6 +22,8 @@ const giro = {
 };
 const url = stamp => `${base}/g/scheda?t=${encodeURIComponent(encodeLink({...giro, stamp}, key))}`;
 
+// diverso dall'indirizzo del gateway, come in produzione: sul foglio deve comparire il pubblico
+const PUBBLICO = 'https://r.example';
 const browser = await chromium.launch();
 const fails = [];
 const errors = [];
@@ -90,10 +92,23 @@ for (const atteso of ['OpenStreetMap', 'https://www.openstreetmap.org/copyright'
   if (!fontiTesto.includes(atteso)) fails.push(`nelle fonti nostre manca "${atteso}"`);
 await page.close();
 
+// un giro con una ventina di note: il blob e' lungo, il QR non si disegna e l'indirizzo resta per esteso
+{
+  const lungo = {...giro, stamp: stampCorrente,
+    poi: Array.from({length: 20}, (_, i) => ({osmId: 1000 + i, nota: 'n'.repeat(80)}))};
+  const p = await browser.newPage();
+  p.on('pageerror', e => errors.push(String(e)));
+  await p.goto(`${base}/g/scheda?t=${encodeURIComponent(encodeLink(lungo, key))}`);
+  await p.waitForSelector('.gpx .indirizzo', {timeout: 30000});
+  if (await p.$('svg.qr')) fails.push('con venti punti il QR risulta disegnato: sarebbe illeggibile');
+  if ((await p.textContent('.gpx .indirizzo')).trim().length < 2000) fails.push('con venti punti l\'indirizzo non e\' scritto per esteso');
+  await p.close();
+}
+
 // il documento da file://, senza rete: il QR non si disegna, l'indirizzo resta, nessun errore
 {
   const t = encodeURIComponent(encodeLink({...giro, stamp: stampCorrente}, key));
-  const doc = await makeDocumentoTool({gatewayUrl: base, publicUrl: base, linkKey: key,
+  const doc = await makeDocumentoTool({gatewayUrl: base, publicUrl: PUBBLICO, linkKey: key,
     waysDbPath: process.env.WM_WAYS_DB ?? new URL('../../data/ways.sqlite', import.meta.url).pathname})({t,
     introduzione: 'Vedi [il parco](https://www.parcosanrossore.it/) e [https://example.org/x](https://example.org/x).',
     luoghi: [{osmId: 1733141336, testo: 'Vedi [Wikipedia](https://it.wikipedia.org/wiki/Monte_Serra).'}],
@@ -108,7 +123,10 @@ await page.close();
     await p.goto(`file://${file}`);
     await p.waitForSelector('table.numeri', {timeout: 30000});
     if (await p.$('svg.qr')) fails.push('senza rete il QR risulta disegnato');
-    if (!(await p.textContent('.gpx .indirizzo').catch(() => '')).includes('/g/gpx?t=')) fails.push('senza rete l\'indirizzo del GPX non resta');
+    const ind = (await p.textContent('.gpx .indirizzo').catch(() => '')).trim();
+    if (!ind.startsWith(`${PUBBLICO}/g/gpx?t=`)) fails.push(`senza rete l'indirizzo del GPX non resta, o non e' quello pubblico (${ind.slice(0, 40)})`);
+    if (ind.includes('127.0.0.1')) fails.push('sul foglio compare l\'indirizzo locale');
+    if (!(await p.textContent('.fonti-nostre')).includes('dati del')) fails.push('nelle fonti nostre manca la data dei dati');
     // in stampa: l'indirizzo accanto all'etichetta, nessuna sottolineatura; non raddoppia se l'etichetta e' l'indirizzo
     await p.emulateMedia({media: 'print'});
     const link = await p.$$eval('.racconto .corpo a, .racconto-luogo a', as => as.map(a => ({

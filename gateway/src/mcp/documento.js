@@ -109,7 +109,7 @@ export function makeDocumentoTool({gatewayUrl, publicUrl = gatewayUrl, linkKey, 
   return async function documentoTool({t, introduzione, luoghi = [], consigli, fonti = []}) {
     // 1) il blob: un link alterato vale come uno malformato
     let blob;
-    try { blob = decodeLink(/%/.test(String(t ?? '')) ? decodeURIComponent(t) : t, linkKey); }
+    try { blob = decodeLink(t, linkKey); }
     catch (e) { return {stato: e instanceof LinkError ? e.stato : 'firma_non_valida'}; }
 
     // 2) gli slot dell'assistente, misurati prima di qualsiasi calcolo
@@ -133,7 +133,7 @@ export function makeDocumentoTool({gatewayUrl, publicUrl = gatewayUrl, linkKey, 
     const v = await fetchFn(`${gatewayUrl}/v1/version`).then(x => x.json()).catch(() => null);
 
     const dati = datiScheda({route, blob, resolvePoi, dataStamp: v ? () => v : undefined,
-      linkGpx: linkGpxDi(publicUrl, /%/.test(String(t)) ? decodeURIComponent(t) : t)});
+      linkGpx: linkGpxDi(publicUrl, t)});
     // un guasto del database non e' un POI sparito: non va raccontato come tale
     if (dati.poiNonDisponibili) return {stato: 'dati_non_disponibili'};
 

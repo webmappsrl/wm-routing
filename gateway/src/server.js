@@ -1,3 +1,4 @@
+import {publicUrlDi} from './mcp/public-url.js';
 import {readFileSync} from 'node:fs';
 import express from 'express';
 import Database from 'better-sqlite3';
@@ -31,7 +32,7 @@ app.use('/preview', express.static(process.env.WM_PREVIEW ?? new URL('../../prev
 // fallback deve scaricare il suo GPX, non morire con nessun_percorso
 if (process.env.WM_LINK_KEY) {
   app.use('/g', makeGRouter({
-    publicUrl: process.env.WM_PUBLIC_URL || `http://127.0.0.1:${process.env.PORT ?? 8991}`,
+    publicUrl: publicUrlDi(process.env.WM_PUBLIC_URL, `http://127.0.0.1:${process.env.PORT ?? 8991}`),
     compute: makeFallbackRoute({config, compute: makeRouteCore(deps)}),
     shard: config.shards.mcp, bbox: BBOX, key: process.env.WM_LINK_KEY, dataStamp,
     resolvePoi: makeResolvePoi({waysDbPath: process.env.WM_WAYS_DB ?? '/graph/ways.sqlite'})}));
@@ -43,7 +44,7 @@ if (process.env.WM_MCP_ENABLED === '1' && process.env.WM_MCP_TOKEN && process.en
     token: process.env.WM_MCP_TOKEN,
     serverOpts: {
       gatewayUrl: `http://127.0.0.1:${port}`,
-      publicUrl: process.env.WM_PUBLIC_URL || `http://127.0.0.1:${port}`,
+      publicUrl: publicUrlDi(process.env.WM_PUBLIC_URL, `http://127.0.0.1:${port}`),
       linkKey: process.env.WM_LINK_KEY,
       waysDbPath: process.env.WM_WAYS_DB ?? '/graph/ways.sqlite',
       log: logEvent,

@@ -103,9 +103,10 @@ function qrSvg(url) {
 function gpxHtml(link) {
   const url = solo(link);
   if (!url) return '';
+  const qr = qrSvg(url);
   return `<section class="gpx"><h2>Il percorso come file GPX</h2>` +
     `<p>Scarica il file e caricalo dove preferisci (app di navigazione, orologio, sito di mappe).</p>` +
-    `<div class="gpx-corpo">${qrSvg(url) ? `<div class="qr-box">${qrSvg(url)}<p class="didascalia">Inquadra il codice con il telefono.</p></div>` : ''}` +
+    `<div class="gpx-corpo">${qr ? `<div class="qr-box">${qr}<p class="didascalia">Inquadra il codice con il telefono.</p></div>` : ''}` +
     `<div class="gpx-testo"><p class="indirizzo">${esc(url)}</p><p class="avviso-gpx">${esc(AVVISO_GPX)}</p></div></div></section>`;
 }
 
