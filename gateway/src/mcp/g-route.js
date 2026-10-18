@@ -6,8 +6,8 @@ import {readFileSync} from 'node:fs';
 import express from 'express';
 import {decodeLink} from './link.js';
 import {toGpx} from './gpx.js';
-import {compactRoute} from './compact.js';
-import {validPoints, sendError, WARNING} from '../route.js';
+import {datiScheda} from './dati-scheda.js';
+import {validPoints, sendError} from '../route.js';
 import {createRateLimiter} from '../rate-limit.js';
 import {logEvent} from '../log.js';
 
@@ -17,23 +17,6 @@ const ALTERATO = 'Questo link è stato alterato o troncato: non fidarti del giro
   'mostrerebbe. Fatti rimandare il link dall’assistente.';
 
 const PREVIEW_DIR = process.env.WM_PREVIEW ?? new URL('../../../preview', import.meta.url).pathname;
-
-// nomi e quote dei POI vengono dal database, la nota dal blob firmato.
-// Un guasto del database non e' un POI inesistente: si distingue.
-function resolveSchedaPoi(resolvePoi, list) {
-  const vuoto = {poi: [], poiMancanti: 0, poiNonDisponibili: false};
-  if (!resolvePoi || !list?.length) return vuoto;
-  try {
-    const r = resolvePoi(list.map(x => x.osmId));
-    if (r.errore) return {...vuoto, poiNonDisponibili: true};
-    const note = new Map(list.map(x => [x.osmId, x.nota]));
-    return {
-      poi: r.trovati.map(t => ({name: t.name, kind: t.kind, ele: t.ele, lonLat: [t.lon, t.lat], nota: note.get(t.osmId)})),
-      poiMancanti: (r.mancanti?.length ?? 0) + (r.nonValidi ?? 0),
-      poiNonDisponibili: false,
-    };
-  } catch { return {...vuoto, poiNonDisponibili: true}; }
-}
 
 export function makeGRouter({compute, shard, bbox, key, resolvePoi, dataStamp, previewDir = PREVIEW_DIR,
                              rate = {capacity: 60, perSecond: 2}}) {
@@ -115,16 +98,7 @@ export function makeGRouter({compute, shard, bbox, key, resolvePoi, dataStamp, p
     if (b) {
       try {
         const r = await compute(shard, b.profile, b.points, {checkSnap: false});
-        const c = compactRoute(r);
-        let stampCorrente = null;
-        try { stampCorrente = dataStamp?.().osm ?? null; } catch { /* nessun banner */ }
-        res.set('Cache-Control', 'no-store').json({
-          profilo: c.profilo, distanzaKm: c.distanzaKm, salitaM: c.salitaM, discesaM: c.discesaM,
-          oreDIN33466: c.oreDIN33466, quotaMinMaxM: c.quotaMinMaxM, tappe: c.tappe, sentieri: c.sentieri,
-          geometry: r.geometry, stamp: b.stamp, stampCorrente,
-          avvertenza: WARNING,
-          ...resolveSchedaPoi(resolvePoi, b.poi),
-        });
+        res.set('Cache-Control', 'no-store').json(datiScheda({route: r, blob: b, resolvePoi, dataStamp}));
       } catch (e) { sendError(res, e); }
     }
     logEvent({route: '/g/scheda.json', status: res.statusCode, ms: Date.now() - t0});
