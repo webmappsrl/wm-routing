@@ -98,9 +98,17 @@ describe('contenuto ostile', () => {
     expect(renderMarkdown('[x](https://a.it)')).toContain('rel="noopener noreferrer nofollow"');
   });
   it('tante quadre aperte non hanno costo quadratico', () => {
+    // la soglia si misura sulla macchina che esegue il test, non si fissa in
+    // millisecondi: un numero fisso diventa rosso su una macchina carica anche
+    // se il codice e' giusto. Il riferimento e' lo stesso input senza quadre.
     const t0 = performance.now();
+    renderMarkdown('a'.repeat(MAX_MARKDOWN));
+    const base = performance.now() - t0;
+    const t1 = performance.now();
     renderMarkdown('['.repeat(MAX_MARKDOWN));
-    expect(performance.now() - t0).toBeLessThan(40);
+    // col comportamento quadratico il rapporto misurato era di tre ordini di
+    // grandezza (195 ms contro meno di 1 ms): venti volte lascia margine.
+    expect(performance.now() - t1).toBeLessThan(Math.max(25, base * 20));
   });
   it('input troncato a MAX_MARKDOWN', () => {
     expect(MAX_MARKDOWN).toBe(20000);
