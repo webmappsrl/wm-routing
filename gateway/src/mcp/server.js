@@ -5,7 +5,9 @@ import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js';
 import {z} from 'zod';
 import {compactRoute} from './compact.js';
 import {encodeLink, LinkError} from './link.js';
+import {makeDocumentoTool} from './documento.js';
 import {makePoiNearbyTool, makeResolvePoi} from './poi.js';
+import {MAX_MARKDOWN} from './markdown.js';
 import {profiloPng} from './profilo.js';
 
 // Chiave (Symbol) con cui il tool route passa al wrapper il PNG del profilo: una
@@ -23,7 +25,8 @@ difficolta' SAC/CAI e tempi DIN 33466. Hai tre tool: "route" (calcola il
 percorso: numeri, tappe, sentieri, avvisi, profilo altimetrico come immagine,
 link "linkPreview" e "linkGpx"), "poi_nearby" (punti di interesse vicino a un
 punto: nome, tipo, quota, osmId e, dove ci sono, gli identificatori
-"wikipedia" e "wikidata") e "giro_finale" (l'export del giro scelto).
+"wikipedia" e "wikidata"), "giro_finale" (l'export del giro scelto) e
+"documento_giro" (il documento completo del giro, col tuo racconto dentro).
 
 Progetti un'escursione per fasi, in questo ordine. I passi si saltano quando
 l'informazione c'e' gia' (se l'utente ha detto zona e tempo, non richiederli);
@@ -61,6 +64,12 @@ il gate della fase 5 non si salta mai.
    per POI (viene tagliata a 80 caratteri). Restituisce "linkGpx" (file GPX) e
    "linkScheda" (scheda stampabile del giro), piu' "poiRisolti" e
    "poiMancanti": riferisci sempre i "poiMancanti". Consegna i link.
+7. Offri il documento del giro: "documento_giro" con lo stesso blob (la parte
+   dopo "?t=" di "linkScheda") e il TUO testo — presentazione, un racconto per
+   ogni luogo (per osmId), consigli, fonti. Numeri, nomi, quote e percorso li
+   rimette il servizio: non riscriverli nel testo. Restituisce l'HTML in
+   "documento" e il nome con cui salvarlo in "nomeFile"; se "luoghiIgnorati"
+   non e' zero, qualche osmId non apparteneva al giro: dillo.
 
 Disciplina, non negoziabile:
 - ogni numero che riferisci (km, dislivelli, ore, quote, difficolta') viene
@@ -218,5 +227,30 @@ export function makeMcpServer(opts) {
       })).max(MAX_POI).optional().describe('POI da portare nei file, come osmId'),
     },
   }, logged('giro_finale', finalTool));
+  const documentoTool = makeDocumentoTool(opts);
+  server.registerTool('documento_giro', {
+    title: 'Documento del giro, col tuo racconto dentro',
+    description: 'Dopo "giro_finale": compone il documento completo del giro, una pagina HTML ' +
+      'autosufficiente che l\'utente salva su disco e riapre anche senza rete. Accetta il blob "t" ' +
+      '(la parte dopo "?t=" di linkScheda, incollata intatta) e SOLO testo tuo in Markdown: ' +
+      '"introduzione", "luoghi" (un testo per osmId), "consigli", "fonti" (titolo e url). ' +
+      'NON accetta numeri, nomi, quote, coordinate ne\' geometria: quelli li rimette il servizio dai ' +
+      'dati firmati, quindi non riscriverli nel testo. Un osmId che non e\' nel giro viene scartato: ' +
+      'lo dice "luoghiIgnorati". Restituisce "documento" (l\'HTML da consegnare all\'utente) e ' +
+      '"nomeFile" con cui salvarlo.',
+    inputSchema: {
+      t: z.string().describe('Il blob firmato: la parte dopo "?t=" del linkScheda di giro_finale'),
+      introduzione: z.string().max(MAX_MARKDOWN).optional().describe('Presentazione del giro, in Markdown'),
+      luoghi: z.array(z.object({
+        osmId: z.number().int().describe('osmId di un POI gia\' passato a giro_finale'),
+        testo: z.string().max(MAX_MARKDOWN).describe('Il tuo racconto del luogo, in Markdown'),
+      })).max(30).optional().describe('Un racconto per luogo, agganciato all\'osmId'),
+      consigli: z.string().max(MAX_MARKDOWN).optional().describe('Consigli pratici, in Markdown'),
+      fonti: z.array(z.object({
+        titolo: z.string().describe('Titolo della fonte'),
+        url: z.string().describe('Indirizzo http o https della fonte'),
+      })).max(30).optional().describe('Le fonti che hai usato per il racconto'),
+    },
+  }, logged('documento_giro', documentoTool));
   return server;
 }

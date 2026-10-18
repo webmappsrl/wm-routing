@@ -137,9 +137,12 @@ function render(d) {
       ${d.poi.some(p => p.nota) ? '<p>Le note sono scritte dall’assistente, non da Webmapp.</p>' : ''}
     </footer>`;
   $('stampa').addEventListener('click', () => window.print());
-  disegnaMappa(d);
   const profilo = () => disegnaProfilo($('profilo'), [{c: d.geometry.coordinates, colore: '#d0021b'}]);
   profilo();
+  // la mappa ha bisogno della libreria dal CDN: nel documento salvato su disco e aperto
+  // senza rete non c'e'. E' un di piu': numeri, tappe, sentieri, profilo e racconto
+  // restano, e il riquadro della mappa semplicemente resta vuoto.
+  try { disegnaMappa(d); } catch { /* nessuna mappa */ }
   // in stampa la larghezza cambia: il profilo si ridisegna alla misura della pagina
   window.addEventListener('beforeprint', () => { profilo(); window.__schedaMappa?.updateSize(); });
   window.addEventListener('afterprint', () => { profilo(); window.__schedaMappa?.updateSize(); });

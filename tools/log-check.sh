@@ -24,6 +24,7 @@ post rejoin "{\"profile\":\"escursionista\",\"position\":[$SEA_LON,$SEA_LAT],\"t
 # giro_finale e /g/scheda* ricevono osmId e note scritte dal modello: si
 # provano con un osmId e una nota inconfondibili.
 NOTA="NOTA-DA-NON-LOGGARE-xyz"; OSMID=1733141336
+TESTO="TESTO-DELL-ASSISTENTE-DA-NON-LOGGARE-xyz"
 BLOB=""; BLOB_POI=""; TOKEN=""
 if [ -f .env ]; then
   KEY=$(grep '^WM_LINK_KEY=' .env | cut -d= -f2 || true)
@@ -55,6 +56,13 @@ if [ -f .env ]; then
     curl -s -o /dev/null -X POST "$URL/mcp?t=$TOKEN" -H 'Content-Type: application/json' \
       -H 'Accept: application/json, text/event-stream' \
       -d "{\"jsonrpc\":\"2.0\",\"id\":10,\"method\":\"tools/call\",\"params\":{\"name\":\"giro_finale\",\"arguments\":{\"points\":[[$SEA_LON,$SEA_LAT],[$SEA_LON,$SEA_LAT]],\"profile\":\"escursionista\",\"poi\":[{\"osmId\":$OSMID,\"nota\":\"$NOTA\"}]}}}" || true
+    # documento_giro riceve il blob e il testo scritto dall'assistente: ne' l'uno
+    # ne' l'altro devono comparire nei log
+    if [ -n "${BLOB_POI:-}" ]; then
+      curl -s -o /dev/null -X POST "$URL/mcp?t=$TOKEN" -H 'Content-Type: application/json' \
+        -H 'Accept: application/json, text/event-stream' \
+        -d "{\"jsonrpc\":\"2.0\",\"id\":11,\"method\":\"tools/call\",\"params\":{\"name\":\"documento_giro\",\"arguments\":{\"t\":\"$BLOB_POI\",\"introduzione\":\"$TESTO\",\"luoghi\":[{\"osmId\":$OSMID,\"testo\":\"$TESTO\"}]}}}" || true
+    fi
   fi
 fi
 
@@ -72,8 +80,9 @@ if [ -n "$BLOB_POI" ]; then
   echo "$LOGS" | grep -qF "${BLOB_POI:0:24}" && { echo "!! il blob con i POI e' finito nei log" >&2; exit 1; }
   echo "$LOGS" | grep -qF "$NOTA" && { echo "!! la nota di un POI e' finita nei log" >&2; exit 1; }
   echo "$LOGS" | grep -qF "$OSMID" && { echo "!! un osmId e' finito nei log" >&2; exit 1; }
+  echo "$LOGS" | grep -qF "$TESTO" && { echo "!! il testo dell'assistente e' finito nei log" >&2; exit 1; }
 fi
 if [ -n "$TOKEN" ] && echo "$LOGS" | grep -qF "$TOKEN"; then
   echo "!! il token della rotta /mcp e' finito nei log" >&2; exit 1
 fi
-echo "ok: nessuna coordinata nei log (comprese /g/, /g/scheda*, /mcp route e giro_finale: ne' blob, ne' osmId, ne' note)"
+echo "ok: nessuna coordinata nei log (comprese /g/, /g/scheda*, /mcp route, giro_finale e documento_giro: ne' blob, ne' osmId, ne' note, ne' testo dell'assistente)"

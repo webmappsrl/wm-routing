@@ -227,15 +227,16 @@ function fase(n) {
   return INSTRUCTIONS.slice(start, end > -1 ? end : undefined);
 }
 
-it('istruzioni: nominano i tre tool', () => {
-  for (const t of ['route', 'poi_nearby', 'giro_finale']) expect(INSTRUCTIONS).toContain(t);
+it('istruzioni: nominano i quattro tool', () => {
+  for (const t of ['route', 'poi_nearby', 'giro_finale', 'documento_giro']) expect(INSTRUCTIONS).toContain(t);
 });
 
-it('istruzioni: sei fasi numerate, in ordine, ciascuna col suo contenuto', () => {
-  const pos = [1, 2, 3, 4, 5, 6].map(n => INSTRUCTIONS.indexOf(`\n${n}. `));
+it('istruzioni: sette fasi numerate, in ordine, ciascuna col suo contenuto', () => {
+  const pos = [1, 2, 3, 4, 5, 6, 7].map(n => INSTRUCTIONS.indexOf(`\n${n}. `));
   expect(pos.every(p => p > -1)).toBe(true);
   expect([...pos].sort((a, b) => a - b)).toEqual(pos);
-  expect(INSTRUCTIONS).not.toContain('\n7. ');
+  expect(INSTRUCTIONS).not.toContain('\n8. ');
+  expect(fase(7)).toContain('documento_giro');
   expect(fase(1)).toMatch(/vincoli/i);
   expect(fase(1)).toMatch(/data/i);
   expect(fase(1)).toMatch(/una domanda per volta/i);

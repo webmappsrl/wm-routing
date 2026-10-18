@@ -6,6 +6,7 @@ import {readFileSync} from 'node:fs';
 import {makeRouteTool, makeMcpServer} from '../src/mcp/server.js';
 import {makePoiNearbyTool} from '../src/mcp/poi.js';
 import {makeFinalTool} from '../src/mcp/server.js';
+import {makeDocumentoTool} from '../src/mcp/documento.js';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {InMemoryTransport} from '@modelcontextprotocol/sdk/inMemory.js';
 
@@ -124,6 +125,33 @@ const nomi = (await (async () => {
   await cl.close();
   return t;
 })()).sort().join(',');
-check(nomi === 'giro_finale,poi_nearby,route', `il server MCP espone i tre tool (${nomi})`);
+check(nomi === 'documento_giro,giro_finale,poi_nearby,route', `il server MCP espone i quattro tool (${nomi})`);
+
+// 11. documento_giro: lo stesso blob, il racconto dell'assistente dentro, e un
+// documento che sta in piedi da solo (niente /preview/ da chiedere a nessuno)
+const doc = await makeDocumentoTool(opts)({
+  t: new URL(fin.linkScheda).searchParams.get('t'),
+  introduzione: 'Un giro **lungo** verso la vetta.',
+  luoghi: [{osmId: MONTE_SERRA, testo: 'La cima si vede da tutta la piana.'},
+           {osmId: INESISTENTE, testo: 'questo non deve comparire'}],
+  consigli: '- Acqua alla partenza',
+  fonti: [{titolo: 'OpenStreetMap', url: 'https://www.openstreetmap.org/'}],
+});
+check(doc.stato === undefined && doc.documento?.startsWith('<!doctype html>'),
+  `documento_giro produce il documento (${doc.stato ?? doc.nomeFile})`);
+check(doc.luoghiIgnorati === 1, `l'osmId fuori dal giro e' scartato e contato (${doc.luoghiIgnorati})`);
+check(!doc.documento.includes('/preview/scheda.css') && !doc.documento.includes('/preview/scheda.js'),
+  'il documento porta dentro CSS e JavaScript: si apre da file://');
+check(doc.documento.includes('questo non deve comparire') === false, 'il testo del luogo scartato non c\'e\'');
+const dentro = JSON.parse(doc.documento.match(/id="dati-giro">([\s\S]*?)<\/script>/)[1]);
+check(dentro.distanzaKm === sch.distanzaKm && dentro.salitaM === sch.salitaM,
+  `i numeri inline sono quelli della scheda (${dentro.distanzaKm} km)`);
+check(dentro.racconto.introduzione.includes('<strong>lungo</strong>'), 'il Markdown dell\'assistente e\' reso');
+const troppo = await makeDocumentoTool(opts)({
+  t: new URL(fin.linkScheda).searchParams.get('t'), consigli: 'x'.repeat(20001)});
+check(troppo.stato === 'testo_troppo_lungo' && troppo.slot === 'consigli',
+  `uno slot oltre il massimo e' un errore che dice quale (${troppo.slot})`);
+check((await makeDocumentoTool(opts)({t: falso})).stato === 'firma_non_valida',
+  'documento_giro su blob manomesso: firma_non_valida');
 
 process.exit(failed);
