@@ -124,7 +124,8 @@ const soloTesto = h => {
   if (typeof h !== 'string') return '';
   const corpo = new DOMParser().parseFromString(h, 'text/html').body;
   corpo.querySelectorAll('script, style').forEach(n => n.remove());   // il loro testo non e' autore
-  const t = (corpo.textContent ?? '').replace(/\s+/g, ' ').trim();
+  // caratteri invisibili (spazio a larghezza zero, soft hyphen, BOM) non sono un autore
+  const t = (corpo.textContent ?? '').replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u2064\u00AD\uFEFF]/g, '').replace(/\s+/g, ' ').trim();
   return t.length > 120 ? t.slice(0, 117) + '…' : t;
 };
 // Restituisce {src, autore, licenza} oppure null: tutti e tre i campi o niente.
@@ -143,31 +144,36 @@ async function fotoDi(p) {
   // senza attribuzione l'immagine non si mostra
   return autore && licenza ? {src, autore, licenza} : null;
 }
+// Ritorna una promessa che si chiude quando ogni foto richiesta e' arrivata o ha
+// rinunciato: il bottone Stampa la aspetta, cosi' chi stampa subito non perde le foto.
 function caricaFoto(d) {
-  for (const p of d.poi.filter(x => x.wikipedia || x.wikidata).slice(0, MAX_FOTO)) {
-    fotoDi(p).then(f => {
-      const cella = document.querySelector(`[data-poi="${p.osmId}"]`);
-      if (!f || !cella) return;
-      const fig = document.createElement('figure');
-      fig.className = 'foto';
-      const img = document.createElement('img');
-      img.alt = `Foto di ${p.name ?? 'un luogo'}`;
-      // se l'immagine non si scarica, sparisce anche l'attribuzione: niente riquadro vuoto
-      img.addEventListener('error', () => fig.remove());
-      img.src = f.src;
-      const cap = document.createElement('figcaption');
-      cap.textContent = `Foto: ${f.autore}, ${f.licenza}, da Wikipedia`;
-      fig.append(img, cap);
-      cella.prepend(fig);
-      // la riga sulle foto compare solo se almeno una c'e'
+  const attese = d.poi.filter(x => x.wikipedia || x.wikidata).slice(0, MAX_FOTO).map(p => fotoDi(p).then(f => new Promise(fine => {
+    // la foto sta nella colonna del luogo (sotto nome e tipo), mai in quella dell'assistente
+    const cella = document.querySelector(`[data-poi="${p.osmId}"]`);
+    if (!f || !cella) return fine();
+    const fig = document.createElement('figure');
+    fig.className = 'foto';
+    const img = document.createElement('img');
+    img.alt = `Foto di ${p.name ?? 'un luogo'}`;
+    // se l'immagine non si scarica, sparisce anche l'attribuzione: niente riquadro vuoto
+    img.addEventListener('error', () => { fig.remove(); fine(); });
+    img.addEventListener('load', () => {
+      // la riga sulle foto compare solo quando almeno una e' davvero arrivata
       if (!document.getElementById('nota-foto')) {
         const n = document.createElement('p');
         n.id = 'nota-foto';
         n.textContent = 'Le foto dei luoghi vengono da Wikipedia e Wikimedia Commons: autore e licenza sono scritti sotto ogni foto.';
         document.querySelector('footer')?.append(n);
       }
-    }).catch(() => {});
-  }
+      fine();
+    });
+    img.src = f.src;
+    const cap = document.createElement('figcaption');
+    cap.textContent = `Foto: ${f.autore}, ${f.licenza}, da Wikipedia`;
+    fig.append(img, cap);
+    cella.append(fig);
+  })).catch(() => {}));
+  return Promise.all(attese);
 }
 
 function render(d) {
@@ -184,8 +190,8 @@ function render(d) {
     poi = '<p class="avviso">L’elenco dei punti di interesse non è disponibile in questo momento: riapri la scheda tra poco.</p>';
   } else if (d.poi.length) {
     poi = `<table><thead><tr><th>Luogo</th><th>Quota</th><th>Nota dell’assistente</th></tr></thead><tbody>` +
-      d.poi.map(p => `<tr><td><strong>${esc(p.name)}</strong>${TIPI_POI[p.kind] ? `<br><span class="tipo">${esc(TIPI_POI[p.kind])}</span>` : ''}</td>` +
-        `<td class="num">${p.ele != null ? `${fmt(p.ele, 0)} m` : '—'}</td><td data-poi="${esc(p.osmId)}">${esc(p.nota ?? '')}${r.luogo(p.osmId) ? `<div class="racconto-luogo"><p class="etichetta"><strong>L’assistente racconta</strong></p>${r.luogo(p.osmId)}</div>` : ''}</td></tr>`).join('') +
+      d.poi.map(p => `<tr><td data-poi="${esc(p.osmId)}"><strong>${esc(p.name)}</strong>${TIPI_POI[p.kind] ? `<br><span class="tipo">${esc(TIPI_POI[p.kind])}</span>` : ''}</td>` +
+        `<td class="num">${p.ele != null ? `${fmt(p.ele, 0)} m` : '—'}</td><td>${esc(p.nota ?? '')}${r.luogo(p.osmId) ? `<div class="racconto-luogo"><p class="etichetta"><strong>L’assistente racconta</strong></p>${r.luogo(p.osmId)}</div>` : ''}</td></tr>`).join('') +
       '</tbody></table>';
     if (d.poiMancanti) poi += `<p class="avviso">${d.poiMancanti === 1 ? 'Un punto scelto non è più presente' : `${d.poiMancanti} punti scelti non sono più presenti`} nei dati.</p>`;
   } else if (d.poiMancanti) {
@@ -227,8 +233,13 @@ function render(d) {
       <p>Punti di interesse: OpenStreetMap, dati del ${dataIt(d.stamp)}.</p>
       ${d.poi.some(p => p.nota) ? '<p>Le note sono scritte dall’assistente, non da Webmapp.</p>' : ''}
     </footer>`;
-  if (!d.poiNonDisponibili) caricaFoto(d);
-  $('stampa').addEventListener('click', () => window.print());
+  const foto = d.poiNonDisponibili ? Promise.resolve() : caricaFoto(d);
+  // il foglio parte quando le foto in volo sono arrivate, ma mai oltre il timeout:
+  // se Wikimedia non risponde si stampa senza
+  $('stampa').addEventListener('click', async () => {
+    await Promise.race([foto, new Promise(r => setTimeout(r, WIKI_TIMEOUT_MS))]);
+    window.print();
+  });
   const profilo = () => disegnaProfilo($('profilo'), [{c: d.geometry.coordinates, colore: '#d0021b'}]);
   profilo();
   // la mappa ha bisogno della libreria dal CDN: nel documento salvato su disco e aperto
