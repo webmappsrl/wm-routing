@@ -38,3 +38,45 @@ export function makePoiNearbyTool({waysDbPath}) {
     } finally { db.close(); }
   };
 }
+
+// Risolve gli osmId nei POI del database: nome, tipo, quota e posizione si
+// leggono solo dalla tabella `poi`, mai da cio' che manda il chiamante (la
+// firma dei link non deve certificare dati trascritti dal modello). Un id
+// valido non trovato non si salta: finisce in `mancanti`, cosi' a valle lo si
+// puo' dire all'utente. Gli input che non sono interi sicuri non vengono mai
+// rimandati indietro (sarebbe testo del modello che rientra nella chat): si
+// contano in `nonValidi`. Gli id ripetuti si risolvono una volta sola, alla
+// prima occorrenza. Tabella o file assenti: tutti mancanti con `errore: true`,
+// nessuna eccezione.
+export function makeResolvePoi({waysDbPath}) {
+  return function resolvePoi(osmIds) {
+    const input = Array.isArray(osmIds) ? osmIds : [];
+    const ids = [];
+    const visti = new Set();
+    let nonValidi = 0;
+    for (const id of input) {
+      if (!Number.isSafeInteger(id)) { nonValidi++; continue; }
+      if (visti.has(id)) continue;
+      visti.add(id);
+      ids.push(id);
+    }
+    // database che non si apre o tabella assente: guasto nostro, non POI spariti.
+    // Gli id restano fra i mancanti; `errore` permette a chi legge di distinguere.
+    const tuttiMancanti = () => ({trovati: [], mancanti: [...ids], nonValidi, errore: true});
+    let db;
+    try { db = new Database(waysDbPath, {readonly: true, fileMustExist: true}); }
+    catch { return tuttiMancanti(); }
+    try {
+      let stmt;
+      try { stmt = db.prepare('select osm_id, name, kind, ele, lon, lat from poi where osm_id = ?'); }
+      catch { return tuttiMancanti(); }
+      const trovati = [], mancanti = [];
+      for (const id of ids) {
+        const r = stmt.get(id);
+        if (r) trovati.push({osmId: r.osm_id, name: r.name, kind: r.kind, ele: r.ele, lon: r.lon, lat: r.lat});
+        else mancanti.push(id);
+      }
+      return {trovati, mancanti, nonValidi};
+    } finally { db.close(); }
+  };
+}
