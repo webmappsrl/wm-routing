@@ -82,7 +82,25 @@ describe('contenuto ostile', () => {
   });
   it('segnaposto interni nell\'input non vengono interpretati', () => {
     const o = renderMarkdown('\u00000\u0000 `a`');
+    expect(o).toBe('<p>0 <code>a</code></p>');
+  });
+  it('NUL forgiati non fanno uscire dall\'attributo href', () => {
+    const o = renderMarkdown('[x](https://a.it/\u00001\u0000) `" onmouseover="alert(1)');
+    expect(o).not.toMatch(/"\s+onmouseover/);
     expect(o).not.toContain('\u0000');
+  });
+  it('un code span nell\'indirizzo non finisce dentro href', () => {
+    const o = renderMarkdown('[x](https://a.it/`z`)');
+    expect(o).not.toMatch(/href="[^"]*</);
+    expect(o).not.toContain('<a');
+  });
+  it('i link portano rel noopener noreferrer nofollow', () => {
+    expect(renderMarkdown('[x](https://a.it)')).toContain('rel="noopener noreferrer nofollow"');
+  });
+  it('tante quadre aperte non hanno costo quadratico', () => {
+    const t0 = performance.now();
+    renderMarkdown('['.repeat(MAX_MARKDOWN));
+    expect(performance.now() - t0).toBeLessThan(40);
   });
   it('input troncato a MAX_MARKDOWN', () => {
     expect(MAX_MARKDOWN).toBe(20000);

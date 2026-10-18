@@ -19,11 +19,13 @@ const escapeHtml = s => s.replace(/[&<>"']/g, c => ESCAPES[c]);
 // Whitelist: solo http:// e https:// letterali, senza spazi o controlli
 // dentro l'indirizzo. JaVaScRiPt:, java\tscript:, %6Aavascript:, data:, //x
 // non combaciano e il link non nasce.
-const LINK = /\[([^\]\n]+)\]\(\s*(https?:\/\/[^\s()]*)\s*\)/gi;
+const LINK = /\[([^\[\]\n]+)\]\(\s*(https?:\/\/[^\s()\u0000]*)\s*\)/gi;
 
 // Segnaposto con NUL: il NUL e' tolto dall'input, quindi non si puo' forgiare.
 const PH = /\u0000(\d+)\u0000/g;
 
+// Le righe di un paragrafo sono gia' unite con uno spazio: un code span puo'
+// quindi attraversare gli a capo originali (cosmetico, non e' un rischio).
 function inline(escaped) {
   const store = [];
   const keep = html => `\u0000${store.push(html) - 1}\u0000`;
