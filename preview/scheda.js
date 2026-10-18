@@ -53,11 +53,14 @@ function righeSentieri(lista) {
 // Il racconto dell'assistente arriva gia' in HTML reso dal nostro renderer lato server:
 // qui si inserisce com'e'. Uno slot senza testo non produce nulla (nemmeno il titolo).
 const testo = h => typeof h === 'string' && h.replace(/<[^>]*>/g, '').trim() ? h : '';
-const AVVISO_RACCONTO = 'Scritto dall’assistente dell’utente a partire dalla conversazione: rileggilo prima di partire. ' +
-  'Distanze, dislivelli, tempi e percorso, fuori da questi riquadri, sono calcolati da Webmapp sui dati del giro.';
-function riquadro(titolo, html, conAvviso = true) {
+// Una riga breve in ogni parte dell'assistente (regge se il foglio si separa); la frase che
+// spiega cosa garantiamo noi compare una volta sola, nella prima parte della pagina.
+const AVVISO_BREVE = 'Scritto dall’assistente dell’utente, non da Webmapp: rileggilo prima di partire.';
+const AVVISO_GARANZIA = 'Distanze, dislivelli, tempi e percorso, fuori da questi riquadri, sono calcolati da Webmapp sui dati del giro.';
+const avviso = primo => AVVISO_BREVE + (primo ? ' ' + AVVISO_GARANZIA : '');
+function riquadro(titolo, html, conAvviso = true, primo = false) {
   return `<section class="racconto"><p class="etichetta"><strong>${esc(titolo)}</strong>` +
-    `${conAvviso ? `<span>${esc(AVVISO_RACCONTO)}</span>` : ''}</p><div class="corpo">${html}</div></section>`;
+    `${conAvviso ? `<span>${esc(avviso(primo))}</span>` : ''}</p><div class="corpo">${html}</div></section>`;
 }
 // Solo http/https: l'url finisce in un href e il file puo' essere stato alterato.
 // Il Task 7 puo' riprendere questa lista per la sezione completa delle fonti.
@@ -72,13 +75,14 @@ function raccontoDi(r) {
   const fonti = fontiHtml(o.fonti);
   return {
     introduzione: testo(o.introduzione), consigli: testo(o.consigli), fonti,
-    luogo: id => (Object.hasOwn(luoghi, id) ? testo(luoghi[id]) : ''),
-    haLuoghi: Object.values(luoghi).some(testo),
+    luogo: id => (id != null && Object.hasOwn(luoghi, id) ? testo(luoghi[id]) : ''),
   };
 }
 
 function render(d) {
   const r = raccontoDi(d.racconto);
+  // le descrizioni che compaiono davvero: quelle di POI presenti nella tabella
+  const haLuoghi = !d.poiNonDisponibili && d.poi.some(p => r.luogo(p.osmId));
   const cambiati = d.stampCorrente && d.stamp && d.stampCorrente !== d.stamp;
   const tappe = d.tappe.map((t, i) => `<tr><td>${i === 0 ? 'Partenza' : i === d.tappe.length - 1 ? 'Arrivo' : `Tappa ${i}`}</td>` +
     `<td class="num">${fmt(t.kmDallaPartenza, 2)} km</td><td class="num">${ore(t.oreDallaPartenza)}</td></tr>`).join('');
@@ -103,11 +107,11 @@ function render(d) {
       <button type="button" id="stampa" class="no-print">Stampa o salva in PDF</button>
     </header>
     ${cambiati ? '<p class="avviso">I dati sono cambiati da quando questo giro è stato progettato: ricontrolla tempi e difficoltà.</p>' : ''}
-    ${r.introduzione ? riquadro('Presentazione dell’assistente', r.introduzione) : ''}
+    ${r.introduzione ? riquadro('Presentazione dell’assistente', r.introduzione, true, true) : ''}
     <section class="giro">
       <h2>Il percorso</h2>
       <div id="mappa" role="img" aria-label="Mappa del giro"></div>
-      <p class="didascalia">Verde la partenza, rosso l’arrivo${d.poi.length ? ', blu i luoghi lungo il giro' : ''}.</p>
+      <p class="didascalia">Partenza: cerchio piccolo verde. Arrivo: cerchio grande rosso${d.poi.length ? '. I luoghi lungo il giro hanno il nome scritto accanto' : ''}.</p>
       <h2>Profilo altimetrico</h2>
       <canvas id="profilo" role="img" aria-label="Profilo altimetrico del giro"></canvas>
       <p class="didascalia">Quota in metri, distanza dalla partenza in chilometri.</p>
@@ -124,8 +128,8 @@ function render(d) {
     </section>
     ${tappe ? `<section><h2>Tappe</h2><table><thead><tr><th>Punto</th><th>Km dalla partenza</th><th>Tempo</th></tr></thead><tbody>${tappe}</tbody></table></section>` : ''}
     ${sentieri ? `<section><h2>Sentieri</h2><table id="sentieri"><thead><tr><th>Numero</th><th>Difficoltà</th><th>Lunghezza</th></tr></thead><tbody>${sentieri}</tbody></table></section>` : ''}
-    ${poi ? `<section><h2>Luoghi lungo il giro</h2>${r.haLuoghi && !r.introduzione && !r.consigli ? `<p class="avviso-racconto">${esc(AVVISO_RACCONTO)}</p>` : ''}${poi}</section>` : ''}
-    ${r.consigli ? riquadro('Consigli dell’assistente', r.consigli) : ''}
+    ${poi ? `<section><h2>Luoghi lungo il giro</h2>${haLuoghi && !r.introduzione ? `<p class="avviso-racconto">${esc(avviso(true))}</p>` : ''}${poi}</section>` : ''}
+    ${r.consigli ? riquadro('Consigli dell’assistente', r.consigli, true, !r.introduzione && !haLuoghi) : ''}
     ${r.fonti ? riquadro('Fonti citate dall’assistente', r.fonti, false) : ''}
     <footer>
       <p>${esc(d.avvertenza)}</p>
