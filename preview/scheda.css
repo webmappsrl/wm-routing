@@ -1,0 +1,42 @@
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+body { margin: 0; font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color: #1b1f1d; background: #fff; }
+main { max-width: 46rem; margin: 0 auto; padding: 1.25rem 1rem 2rem; }
+h1 { margin: 0; font-size: 1.7rem; }
+h2 { font-size: 1.15rem; margin: 1.6rem 0 .5rem; border-bottom: 2px solid #2f6f4f; padding-bottom: .2rem; }
+.sotto { margin: .2rem 0 .8rem; color: #4a524e; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: .35rem .5rem; border-bottom: 1px solid #d9ded9; vertical-align: top; }
+thead th { font-size: .85rem; color: #4a524e; }
+.numeri th { width: 55%; font-weight: 500; }
+.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tipo { font-size: .85rem; color: #4a524e; }
+.avviso { background: #fff6dd; border-left: 4px solid #c99700; padding: .5rem .75rem; margin: .8rem 0; }
+footer { margin-top: 2rem; padding-top: .6rem; border-top: 1px solid #b9c0ba; font-size: .85rem; color: #4a524e; }
+#mappa { width: 100%; height: 22rem; background: #eef1ee; border: 1px solid #b9c0ba; }
+#profilo { width: 100%; height: 9rem; display: block; }
+.didascalia { margin: .3rem 0 0; font-size: .85rem; color: #4a524e; }
+button { font: inherit; padding: .5rem 1rem; border: 0; border-radius: .4rem; background: #2f6f4f; color: #fff; cursor: pointer; }
+@media (max-width: 30rem) { th, td { padding: .3rem .25rem; } }
+
+@media print {
+  @page { size: A4; margin: 15mm 14mm; }
+  body { font-size: 11pt; color: #000; background: #fff; }
+  main { max-width: none; margin: 0; padding: 0; }
+  .no-print, button { display: none !important; }
+  h1 { font-size: 20pt; }
+  h2 { font-size: 13pt; break-after: avoid; page-break-after: avoid; }
+  section { break-inside: avoid-page; page-break-inside: avoid; }
+  /* le tabelle lunghe si spezzano, ma mai a meta' riga e con l'intestazione ripetuta */
+  section:has(table:not(.numeri)) { break-inside: auto; page-break-inside: auto; }
+  thead { display: table-header-group; }
+  tr { break-inside: avoid; page-break-inside: avoid; }
+  #mappa { height: 95mm; }
+  #profilo { height: 38mm; }
+  .giro { break-inside: avoid-page; page-break-inside: avoid; }
+  #mappa, #profilo { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  footer { break-inside: avoid; page-break-inside: avoid; color: #000; }
+  .avviso { background: none; border: 1px solid #000; border-left-width: 4px; break-inside: avoid; }
+  th, td { border-bottom-color: #999; }
+  h2 { border-bottom-color: #000; }
+}
