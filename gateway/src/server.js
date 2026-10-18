@@ -7,6 +7,7 @@ import {createEngine} from './engine.js';
 import {makeFallbackRoute, makeRouteCore, makeRouteHandler} from './route.js';
 import {makeRejoinHandler} from './rejoin/rejoin.js';
 import {makeGRouter} from './mcp/g-route.js';
+import {makeResolvePoi} from './mcp/poi.js';
 import {makeMcpHttpHandler} from './mcp/http.js';
 import {logEvent} from './log.js';
 
@@ -31,7 +32,8 @@ app.use('/preview', express.static(process.env.WM_PREVIEW ?? new URL('../../prev
 if (process.env.WM_LINK_KEY) {
   app.use('/g', makeGRouter({
     compute: makeFallbackRoute({config, compute: makeRouteCore(deps)}),
-    shard: config.shards.mcp, bbox: BBOX, key: process.env.WM_LINK_KEY}));
+    shard: config.shards.mcp, bbox: BBOX, key: process.env.WM_LINK_KEY, dataStamp,
+    resolvePoi: makeResolvePoi({waysDbPath: process.env.WM_WAYS_DB ?? '/graph/ways.sqlite'})}));
 }
 // rotta MCP online: interruttore esplicito, token in query string (mai nei log)
 if (process.env.WM_MCP_ENABLED === '1' && process.env.WM_MCP_TOKEN && process.env.WM_LINK_KEY) {
