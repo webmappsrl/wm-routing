@@ -35,10 +35,13 @@ function bundleModulo(dir, entry, visti = new Set(), fuori = []) {
   if (visti.has(entry)) return fuori;
   visti.add(entry);
   const src = readFileSync(`${dir}/${entry}`, 'utf8');
-  const corpo = src.replace(/^import\s+[^;]*?from\s+'(\.\/[^']+)';?[ \t]*$/gm, (riga, rif) => {
+  const corpo = src.replace(/^import\s+[^;]*?from\s+['"](\.\/[^'"]+)['"];?[ \t]*$/gm, (riga, rif) => {
     bundleModulo(dir, rif.slice(2), visti, fuori);
     return '';
   }).replace(/^export\s+(?=function|const|let|class)/gm, '');
+  // un import che non abbiamo saputo risolvere renderebbe il blocco non
+  // parsabile e il documento bianco: meglio morire qui, alla costruzione
+  if (/^\s*import\s/m.test(corpo)) throw new Error(`import non risolto in ${entry}`);
   fuori.push(corpo);
   return fuori;
 }
@@ -67,14 +70,20 @@ const jsonInline = d => JSON.stringify(d).replace(/</g, '\\u003c');
 const scriptInline = s => s.replace(/<\/script/gi, '<\\/script');
 const styleInline = s => s.replace(/<\/style/gi, '<\\/style');
 
+// Le sostituzioni passano SEMPRE da una funzione: in una stringa di
+// sostituzione i pattern $&, $`, $' e $$ hanno un significato, e il JSON ci
+// finisce dentro cosi' com'e'. Un "$&" scritto dall'assistente rimetterebbe
+// nel documento il tag trovato, non escapato: secondo blocco script, JSON
+// rotto, e l'utente si salva una pagina vuota credendola il suo giro.
 function componi(previewDir, dati) {
   const a = assets(previewDir);
   return a.scheletro
-    .replace('<link rel="stylesheet" href="/preview/scheda.css">', `<style>\n${styleInline(a.css)}\n</style>`)
+    .replace('<link rel="stylesheet" href="/preview/scheda.css">',
+      () => `<style>\n${styleInline(a.css)}\n</style>`)
     .replace('<script src="/preview/scheda.js" type="module"></script>',
-      `<script type="module">\n${scriptInline(a.js)}\n</script>`)
+      () => `<script type="module">\n${scriptInline(a.js)}\n</script>`)
     .replace('<script type="application/json" id="dati-giro"></script>',
-      `<script type="application/json" id="dati-giro">${jsonInline(dati)}</script>`);
+      () => `<script type="application/json" id="dati-giro">${jsonInline(dati)}</script>`);
 }
 
 // --- validazione degli slot ---
@@ -87,11 +96,14 @@ const troppoLungo = (slot, testo) => {
   return n > MAX_MARKDOWN ? {stato: 'testo_troppo_lungo', slot, caratteri: n, massimo: MAX_MARKDOWN} : null;
 };
 
-const fontiValide = fonti => (Array.isArray(fonti) ? fonti : []).slice(0, MAX_FONTI)
+// Prima si scartano le fonti inservibili, POI si taglia al tetto: tagliando
+// per primo, trenta righe rotte in cima farebbero sparire l'unica buona.
+const fontiValide = fonti => (Array.isArray(fonti) ? fonti : [])
   .filter(f => f && typeof f.titolo === 'string' && typeof f.url === 'string' && /^https?:\/\//i.test(f.url))
+  .slice(0, MAX_FONTI)
   .map(f => ({titolo: f.titolo.slice(0, MAX_TITOLO), url: f.url}));
 
-export function makeDocumentoTool({gatewayUrl, publicUrl = gatewayUrl, linkKey, fetchFn = fetch,
+export function makeDocumentoTool({gatewayUrl, linkKey, fetchFn = fetch,
                                    waysDbPath = '', previewDir = PREVIEW_DIR,
                                    resolvePoi = makeResolvePoi({waysDbPath})}) {
   return async function documentoTool({t, introduzione, luoghi = [], consigli, fonti = []}) {
@@ -125,12 +137,17 @@ export function makeDocumentoTool({gatewayUrl, publicUrl = gatewayUrl, linkKey, 
     if (dati.poiNonDisponibili) return {stato: 'dati_non_disponibili'};
 
     // 4) il racconto: solo i luoghi che il blob firmato porta davvero
+    // I tre modi di non finire nel documento si contano a parte: dire
+    // «quell'osmId non e' nel giro» quando il testo era solo vuoto sarebbe
+    // falso, e l'assistente lo riferirebbe all'utente.
     const ammessi = new Set(dati.poi.map(p => p.osmId));
     const raccontoLuoghi = {};
-    let luoghiIgnorati = 0;
+    let luoghiIgnorati = 0, luoghiSenzaTesto = 0, luoghiDuplicati = 0;
     for (const l of luoghi) {
-      const html = renderMarkdown(l?.testo);
-      if (!Number.isSafeInteger(l?.osmId) || !ammessi.has(l.osmId) || !html) { luoghiIgnorati++; continue; }
+      if (!Number.isSafeInteger(l?.osmId) || !ammessi.has(l.osmId)) { luoghiIgnorati++; continue; }
+      if (Object.hasOwn(raccontoLuoghi, l.osmId)) { luoghiDuplicati++; continue; }  // vince il primo
+      const html = renderMarkdown(l.testo);
+      if (!html) { luoghiSenzaTesto++; continue; }
       raccontoLuoghi[l.osmId] = html;
     }
     dati.racconto = {
@@ -144,7 +161,7 @@ export function makeDocumentoTool({gatewayUrl, publicUrl = gatewayUrl, linkKey, 
     return {
       documento: componi(previewDir, dati),
       nomeFile: `giro-${km}km.html`,
-      luoghiIgnorati,
+      luoghiIgnorati, luoghiSenzaTesto, luoghiDuplicati,
     };
   };
 }

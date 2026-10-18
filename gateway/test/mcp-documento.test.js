@@ -97,6 +97,63 @@ it('markup nel testo non diventa markup, e non chiude il blocco dei dati', async
   expect(d.racconto.introduzione).toContain('&lt;script&gt;');
 });
 
+// I pattern $&, $`, $' e $$ hanno un significato nella STRINGA DI SOSTITUZIONE
+// di String.replace: un "$&" scritto dall'assistente, senza difesa, rimette
+// nel documento il testo trovato (il tag non escapato) e rompe il blocco.
+it('i pattern con $ nel testo non vengono interpretati dalla sostituzione', async () => {
+  for (const veleno of ['PRIMA $& DOPO', "PRIMA $' DOPO", 'PRIMA $` DOPO', 'PRIMA $$ DOPO']) {
+    const r = await tool()({t: t(), introduzione: veleno, consigli: veleno,
+      fonti: [{titolo: veleno, url: 'https://x.test/'}]});
+    const blocchi = r.documento.match(/id="dati-giro"/g) ?? [];
+    expect(blocchi).toHaveLength(1);
+    expect(r.documento.match(/<script type="module">/g)).toHaveLength(1);
+    const d = JSON.parse(r.documento.match(/id="dati-giro">([\s\S]*?)<\/script>/)[1]);
+    expect(d.racconto.introduzione).toContain('DOPO');
+  }
+});
+
+// titolo e url delle fonti non passano dal renderer Markdown: sono l'unico
+// testo che arriva al blocco inline col "<" ancora crudo.
+it('il titolo di una fonte non puo\' chiudere il blocco dei dati', async () => {
+  const r = await tool()({t: t(),
+    fonti: [{titolo: '</script><img src=x onerror=alert(1)>', url: 'https://x.test/'}]});
+  expect(r.documento).not.toContain('<img src=x');
+  expect(r.documento).not.toContain('</script><img');
+  const blocco = r.documento.match(/id="dati-giro">([\s\S]*?)<\/script>/)[1];
+  const d = JSON.parse(blocco);
+  expect(d.racconto.fonti[0].titolo).toBe('</script><img src=x onerror=alert(1)>');
+});
+
+it('il blocco modulo e\' JavaScript valido e non ha import residui', async () => {
+  const r = await tool()({t: t()});
+  const js = r.documento.match(/<script type="module">([\s\S]*?)<\/script>/)[1];
+  expect(js).not.toMatch(/^\s*import\s/m);
+  expect(() => new Function(js)).not.toThrow();   // un bundle rotto non parsa
+  expect(js).toContain('disegnaProfilo');          // i moduli importati ci sono davvero
+  expect(js).toContain('scalaProfilo');
+});
+
+it('testo vuoto, osmId estraneo e doppione si contano a parte', async () => {
+  const r = await tool()({t: t(), luoghi: [
+    {osmId: 1, testo: '   '}, {osmId: 404, testo: 'estranea'},
+    {osmId: 2, testo: 'buona'}, {osmId: 2, testo: 'doppione'},
+  ]});
+  expect(r.luoghiIgnorati).toBe(1);      // solo l'osmId che non e' nel giro
+  expect(r.luoghiSenzaTesto).toBe(1);
+  expect(r.luoghiDuplicati).toBe(1);
+  const d = JSON.parse(r.documento.match(/id="dati-giro">([\s\S]*?)<\/script>/)[1]);
+  expect(d.racconto.luoghi['2']).toContain('buona');   // vince il primo
+  expect(r.documento).not.toContain('doppione');
+});
+
+it('le fonti si filtrano prima di tagliare: una buona in fondo non si perde', async () => {
+  const fonti = [...Array.from({length: 40}, () => ({titolo: 'rotta', url: 'ftp://x.test/'})),
+    {titolo: 'buona', url: 'https://x.test/'}];
+  const r = await tool()({t: t(), fonti});
+  const d = JSON.parse(r.documento.match(/id="dati-giro">([\s\S]*?)<\/script>/)[1]);
+  expect(d.racconto.fonti).toEqual([{titolo: 'buona', url: 'https://x.test/'}]);
+});
+
 it('database dei POI guasto: dati_non_disponibili, non POI inesistenti', async () => {
   const r = await tool({resolvePoi: () => { throw new Error('db'); }})({t: t()});
   expect(r.stato).toBe('dati_non_disponibili');

@@ -235,9 +235,10 @@ export function makeMcpServer(opts) {
       '(la parte dopo "?t=" di linkScheda, incollata intatta) e SOLO testo tuo in Markdown: ' +
       '"introduzione", "luoghi" (un testo per osmId), "consigli", "fonti" (titolo e url). ' +
       'NON accetta numeri, nomi, quote, coordinate ne\' geometria: quelli li rimette il servizio dai ' +
-      'dati firmati, quindi non riscriverli nel testo. Un osmId che non e\' nel giro viene scartato: ' +
-      'lo dice "luoghiIgnorati". Restituisce "documento" (l\'HTML da consegnare all\'utente) e ' +
-      '"nomeFile" con cui salvarlo.',
+      'dati firmati, quindi non riscriverli nel testo. Restituisce "documento" (l\'HTML da ' +
+      'consegnare all\'utente) e "nomeFile" con cui salvarlo, piu\' tre conteggi di cio\' che e\' ' +
+      'stato scartato: "luoghiIgnorati" (osmId che non sono nel giro), "luoghiSenzaTesto" e ' +
+      '"luoghiDuplicati" (dello stesso osmId vale il primo testo).',
     inputSchema: {
       t: z.string().describe('Il blob firmato: la parte dopo "?t=" del linkScheda di giro_finale'),
       introduzione: z.string().max(MAX_MARKDOWN).optional().describe('Presentazione del giro, in Markdown'),

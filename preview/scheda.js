@@ -142,7 +142,7 @@ function render(d) {
   // la mappa ha bisogno della libreria dal CDN: nel documento salvato su disco e aperto
   // senza rete non c'e'. E' un di piu': numeri, tappe, sentieri, profilo e racconto
   // restano, e il riquadro della mappa semplicemente resta vuoto.
-  try { disegnaMappa(d); } catch { /* nessuna mappa */ }
+  try { disegnaMappa(d); } catch (e) { console.warn('mappa non disegnata:', e); }
   // in stampa la larghezza cambia: il profilo si ridisegna alla misura della pagina
   window.addEventListener('beforeprint', () => { profilo(); window.__schedaMappa?.updateSize(); });
   window.addEventListener('afterprint', () => { profilo(); window.__schedaMappa?.updateSize(); });
