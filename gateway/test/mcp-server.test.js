@@ -259,31 +259,54 @@ it('istruzioni: la conferma sta dopo l arricchimento e prima dell export, e le f
   for (const n of [1, 2, 3, 4, 5]) expect(fase(n)).not.toContain('giro_finale');
 });
 
-it('istruzioni: documento_giro viene dopo il gate e dopo giro_finale', () => {
+it('istruzioni: documento_giro viene dopo il gate e dopo giro_finale, ed e obbligatorio e immediato', () => {
   const iDoc = INSTRUCTIONS.indexOf('\n7. ');
   expect(iDoc).toBeGreaterThan(INSTRUCTIONS.indexOf('\n6. '));
   expect(iDoc).toBeGreaterThan(INSTRUCTIONS.search(/conferma/i));
-  expect(fase(7)).toContain('documento_giro');
-  expect(fase(7)).toMatch(/deliverable/i);
-  // le fasi prima del documento non lo chiamano
+  const f = fase(7);
+  expect(f).toContain('documento_giro');
+  expect(f).toMatch(/deliverable/i);
+  // obbligatorio e immediato: nessun condizionale davanti alla chiamata
+  expect(f).toMatch(/Subito dopo, nella stessa risposta, chiama "documento_giro"/);
+  expect(f).not.toMatch(/(se l'utente (vuole|lo chiede)|se serve|se vuoi|offri|eventualmente|facoltativ)/i);
+  // le fasi prima del documento non lo chiamano, e la 6 non chiude il turno
   for (const n of [1, 2, 3, 4, 5, 6]) expect(fase(n)).not.toContain('documento_giro');
+  expect(fase(6)).not.toMatch(/consegna/i);
+  expect(fase(6)).toMatch(/non rispondere all'utente qui/i);
 });
 
-it('istruzioni: gli slot del documento, senza numeri ripetuti, fonti nel loro campo', () => {
+it('istruzioni: slot del documento, fonti mai nella prosa, numeri vietati', () => {
   const f = fase(7);
   for (const slot of ['introduzione', 'luoghi', 'consigli', 'fonti']) expect(f).toContain(`"${slot}"`);
-  expect(f).toMatch(/non\s+ripete i numeri/i);
+  expect(f).toMatch(/"fonti" \(titolo e\s+url: mai dentro la prosa\)/);
+  expect(f).toMatch(/niente numeri \(distanze, dislivelli,\s+tempi, quote\)/);
+  expect(f).not.toMatch(/con tutti i numeri|ripeti i numeri|riporta i numeri/i);
+});
+
+it('istruzioni: la fase 7 gestisce "stato", il salvataggio senza file e consegna link e documento insieme', () => {
+  const f = fase(7);
+  expect(f).toContain('"stato"');
+  expect(f).toContain('testo_troppo_lungo');
+  expect(f).toMatch(/consegna i link, di' che\s+manca/);
+  expect(f).toMatch(/artifact o in un blocco di codice, senza\s+modificarne una riga/);
+  expect(f).toMatch(/insieme/);
 });
 
 it('istruzioni: ognuno dei tre conteggi ha il suo significato, senza scambi', () => {
-  const f = fase(7);
-  expect(f).toMatch(/"luoghiIgnorati" = osmId che non sono nel giro/);
-  expect(f).toMatch(/"luoghiSenzaTesto" = testo vuoto/);
-  expect(f).toMatch(/"luoghiDuplicati" = stesso osmId ripetuto/);
+  const f = fase(7).replace(/\s+/g, ' ');
+  expect(f).toMatch(/"luoghiIgnorati" = l'osmId non e' nel giro/);
+  expect(f).toMatch(/"luoghiSenzaTesto" = il testo era vuoto/);
+  expect(f).toMatch(/"luoghiDuplicati" = osmId ripetuto/);
+  expect(f).toMatch(/solo quelli diversi da zero/);
 });
 
 it('istruzioni: se il profilo lo sceglie l assistente, lo dichiara', () => {
-  expect(INSTRUCTIONS).toMatch(/non l'ha chiesto l'utente[^.]*dichiara quale/i);
+  expect(INSTRUCTIONS.replace(/\s+/g, ' ')).toMatch(/lo scegli tu e non l'utente[^.]*dichiara quale hai scelto e perche'/i);
+});
+
+it('istruzioni: i quattro tool sono annunciati come quattro', () => {
+  expect(INSTRUCTIONS).toContain('Hai quattro tool');
+  expect(INSTRUCTIONS).not.toContain('Hai tre tool');
 });
 
 it('istruzioni: i passi si saltano se l informazione c e gia, il gate no', () => {

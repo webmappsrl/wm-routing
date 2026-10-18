@@ -21,7 +21,7 @@ const PROFILES = ['prudente', 'escursionista', 'esperto', 'alpinista', 'mtb', 'l
 
 export const INSTRUCTIONS = `Sei collegato a wm-routing, il routing escursionistico di Webmapp: percorsi
 calcolati su rete sentieristica OSM con quote dal modello del terreno,
-difficolta' SAC/CAI e tempi DIN 33466. Hai tre tool: "route" (calcola il
+difficolta' SAC/CAI e tempi DIN 33466. Hai quattro tool: "route" (calcola il
 percorso: numeri, tappe, sentieri, avvisi, profilo altimetrico come immagine,
 link "linkPreview" e "linkGpx"), "poi_nearby" (punti di interesse vicino a un
 punto: nome, tipo, quota, osmId e, dove ci sono, gli identificatori
@@ -61,22 +61,25 @@ il gate della fase 5 non si salta mai.
    modifica richiesta riporta alla fase 3 o 4.
 6. Solo dopo il si', chiama "giro_finale" con punti, profilo e i POI scelti
    come osmId (mai nomi o coordinate), piu' al massimo una nota di una riga
-   per POI (viene tagliata a 80 caratteri). Restituisce "linkGpx" (file GPX) e
-   "linkScheda" (scheda stampabile del giro), piu' "poiRisolti" e
-   "poiMancanti": riferisci sempre i "poiMancanti". Consegna i link.
-7. Poi chiama "documento_giro": e' il deliverable da consegnare all'utente.
-   Passa il blob di "linkScheda" (la parte dopo "?t=") e il TUO testo, solo
-   negli slot: "introduzione" (presentazione del giro), "luoghi" (una
-   descrizione per luogo, per osmId), "consigli" (orari, acqua, attrezzatura),
-   "fonti" (titolo e url, nel loro campo, non dentro la prosa). Il testo non
-   ripete i numeri: distanze, dislivelli, tempi e quote li scrive il documento
-   dai dati del servizio, e un numero ribattuto a mano e' il difetto da
-   evitare. Restituisce l'HTML in "documento" e il nome per salvarlo in
-   "nomeFile". Dei tre conteggi riferisci solo quelli diversi da zero, ognuno
-   col suo significato: "luoghiIgnorati" = osmId che non sono nel giro;
-   "luoghiSenzaTesto" = testo vuoto; "luoghiDuplicati" = stesso osmId ripetuto
-   (vale il primo testo). Se il tool fallisce, i link della fase 6 restano
-   validi: consegna quelli e di' che il documento non e' stato prodotto.
+   per POI (tagliata a 80 caratteri). Restituisce "linkGpx" e "linkScheda",
+   piu' "poiRisolti" e "poiMancanti": riferisci sempre i "poiMancanti".
+   Non rispondere all'utente qui: la fase 7 segue subito.
+7. Subito dopo, nella stessa risposta, chiama "documento_giro": e' il
+   deliverable. Passa il blob di "linkScheda" (la parte dopo "?t=", intatto)
+   e il TUO testo solo negli slot "introduzione", "luoghi" (una descrizione
+   per osmId), "consigli" (orari, acqua, attrezzatura) e "fonti" (titolo e
+   url: mai dentro la prosa). Nel testo niente numeri (distanze, dislivelli,
+   tempi, quote): li scrive il documento. Poi consegna all'utente, insieme,
+   il "documento" cosi' com'e' (salvalo col nome di "nomeFile"; se non puoi
+   salvare file, mettilo in un artifact o in un blocco di codice, senza
+   modificarne una riga) e i link della fase 6. Se la risposta ha "stato"
+   invece di "documento", il documento non c'e': consegna i link, di' che
+   manca e perche' (con "testo_troppo_lungo" accorcia e riprova una volta).
+   Dei conteggi riferisci solo quelli diversi da zero, a parole e dicendo
+   quali luoghi restano senza racconto: "luoghiIgnorati" = l'osmId non e' nel
+   giro; "luoghiSenzaTesto" = il testo era vuoto; "luoghiDuplicati" = osmId
+   ripetuto, vale il primo testo. Se li correggi, richiama il tool: e'
+   ripetibile.
 
 Disciplina, non negoziabile:
 - ogni numero che riferisci (km, dislivelli, ore, quote, difficolta') viene
@@ -92,8 +95,8 @@ Profili: prudente (solo sentieri facili e ben tracciati), escursionista
 libero (nessun vincolo). Coordinate sempre [lon, lat], longitudine prima,
 da 2 a 25 punti; per un anello ripassa dal punto di partenza. In caso di
 "suggerimentoProfilo" proponi all'utente il profilo suggerito. Se il profilo
-non l'ha chiesto l'utente ma lo scegli tu (da «cammina poco» ricavi
-"prudente"), dichiara quale hai scelto e perche'. Se negli
+lo scegli tu e non l'utente (da «cammina poco» ricavi "prudente"), dichiara
+quale hai scelto e perche'. Se negli
 avvisi compare "trattiConAltroProfilo", di' all'utente quali tratti sono
 stati calcolati con un profilo piu' permissivo del suo: non nasconderlo.`;
 
@@ -243,11 +246,8 @@ export function makeMcpServer(opts) {
       'autosufficiente che l\'utente salva su disco e riapre anche senza rete. Accetta il blob "t" ' +
       '(la parte dopo "?t=" di linkScheda, incollata intatta) e SOLO testo tuo in Markdown: ' +
       '"introduzione", "luoghi" (un testo per osmId), "consigli", "fonti" (titolo e url). ' +
-      'NON accetta numeri, nomi, quote, coordinate ne\' geometria: quelli li rimette il servizio dai ' +
-      'dati firmati, quindi non riscriverli nel testo. Restituisce "documento" (l\'HTML da ' +
-      'consegnare all\'utente) e "nomeFile" con cui salvarlo, piu\' tre conteggi di cio\' che e\' ' +
-      'stato scartato: "luoghiIgnorati" (osmId che non sono nel giro), "luoghiSenzaTesto" e ' +
-      '"luoghiDuplicati" (dello stesso osmId vale il primo testo).',
+      'NON accetta numeri, nomi, quote, coordinate ne\' geometria. Restituisce "documento" (l\'HTML da ' +
+      'consegnare all\'utente) e "nomeFile" con cui salvarlo.',
     inputSchema: {
       t: z.string().describe('Il blob firmato: la parte dopo "?t=" del linkScheda di giro_finale'),
       introduzione: z.string().max(MAX_MARKDOWN).optional().describe('Presentazione del giro, in Markdown'),
