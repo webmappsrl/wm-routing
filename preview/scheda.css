@@ -17,6 +17,20 @@ footer { margin-top: 2rem; padding-top: .6rem; border-top: 1px solid #b9c0ba; fo
 #profilo { width: 100%; height: 9rem; display: block; }
 .didascalia { margin: .3rem 0 0; font-size: .85rem; color: #4a524e; }
 button { font: inherit; padding: .5rem 1rem; border: 0; border-radius: .4rem; background: #2f6f4f; color: #fff; cursor: pointer; }
+/* Il racconto dell'assistente: riquadro col bordo e un'etichetta in testa, senza colore di sfondo,
+   cosi' la distinzione dai fatti regge anche su un foglio in bianco e nero. */
+.racconto { margin: 1.2rem 0; border: 2px solid #1b1f1d; border-radius: .3rem; }
+.racconto .etichetta { margin: 0; padding: .4rem .75rem; border-bottom: 2px solid #1b1f1d; font-size: .85rem; }
+.racconto .etichetta strong { display: block; font-size: .95rem; text-transform: uppercase; letter-spacing: .04em; }
+.racconto .corpo { padding: .5rem .75rem; }
+.racconto .corpo > :first-child { margin-top: 0; }
+.racconto .corpo > :last-child { margin-bottom: 0; }
+.racconto-luogo { margin-top: .5rem; border-left: 4px double #1b1f1d; padding-left: .6rem; font-size: .95rem; }
+.racconto-luogo .etichetta { margin: 0 0 .2rem; font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; }
+.racconto-luogo p { margin: .3rem 0; }
+.avviso-racconto { margin: 0 0 .5rem; font-size: .85rem; font-style: italic; }
+.fonti { margin: 0; padding-left: 1.2rem; }
+.fonti .url { font-size: .8rem; color: #4a524e; word-break: break-all; }
 @media (max-width: 30rem) { th, td { padding: .3rem .25rem; } }
 
 @media print {
@@ -38,5 +52,9 @@ button { font: inherit; padding: .5rem 1rem; border: 0; border-radius: .4rem; ba
   footer { break-inside: avoid; page-break-inside: avoid; color: #000; }
   .avviso { background: none; border: 1px solid #000; border-left-width: 4px; break-inside: avoid; }
   th, td { border-bottom-color: #999; }
+  .racconto { border-color: #000; break-inside: avoid; }
+  .racconto .etichetta { border-bottom-color: #000; }
+  .racconto-luogo { border-left-color: #000; }
+  .fonti .url { color: #000; }
   h2 { border-bottom-color: #000; }
 }

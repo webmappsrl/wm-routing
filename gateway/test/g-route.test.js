@@ -172,7 +172,7 @@ it('scheda.json: totali, tappe e sentieri del percorso, poi coi nomi del databas
   expect(r.body.geometry.coordinates).toHaveLength(3);
   expect(r.body.stamp).toBe(stamp);
   expect(r.body.stampCorrente).toBe(stamp);
-  expect(r.body.poi).toEqual([{name: 'Monte Serra', kind: 'peak', ele: 917, lonLat: [10.5, 43.75], nota: 'Cima'}]);
+  expect(r.body.poi).toEqual([{osmId: 1733141336, name: 'Monte Serra', kind: 'peak', ele: 917, lonLat: [10.5, 43.75], nota: 'Cima'}]);
   expect(r.body.poiMancanti).toBe(1);
   expect(r.body.poiNonDisponibili).toBe(false);
 });

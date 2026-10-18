@@ -50,7 +50,35 @@ function righeSentieri(lista) {
   return righe;
 }
 
+// Il racconto dell'assistente arriva gia' in HTML reso dal nostro renderer lato server:
+// qui si inserisce com'e'. Uno slot senza testo non produce nulla (nemmeno il titolo).
+const testo = h => typeof h === 'string' && h.replace(/<[^>]*>/g, '').trim() ? h : '';
+const AVVISO_RACCONTO = 'Scritto dall’assistente dell’utente a partire dalla conversazione: rileggilo prima di partire. ' +
+  'Distanze, dislivelli, tempi e percorso, fuori da questi riquadri, sono calcolati da Webmapp sui dati del giro.';
+function riquadro(titolo, html, conAvviso = true) {
+  return `<section class="racconto"><p class="etichetta"><strong>${esc(titolo)}</strong>` +
+    `${conAvviso ? `<span>${esc(AVVISO_RACCONTO)}</span>` : ''}</p><div class="corpo">${html}</div></section>`;
+}
+// Solo http/https: l'url finisce in un href e il file puo' essere stato alterato.
+// Il Task 7 puo' riprendere questa lista per la sezione completa delle fonti.
+function fontiHtml(fonti) {
+  const voci = (Array.isArray(fonti) ? fonti : []).filter(f => f && testo(String(f.titolo ?? '')) && /^https?:\/\//i.test(f.url ?? ''))
+    .map(f => `<li>${esc(f.titolo)} <span class="url">${esc(f.url)}</span></li>`);
+  return voci.length ? `<ul class="fonti">${voci.join('')}</ul>` : '';
+}
+function raccontoDi(r) {
+  const o = r && typeof r === 'object' ? r : {};
+  const luoghi = o.luoghi && typeof o.luoghi === 'object' ? o.luoghi : {};
+  const fonti = fontiHtml(o.fonti);
+  return {
+    introduzione: testo(o.introduzione), consigli: testo(o.consigli), fonti,
+    luogo: id => (Object.hasOwn(luoghi, id) ? testo(luoghi[id]) : ''),
+    haLuoghi: Object.values(luoghi).some(testo),
+  };
+}
+
 function render(d) {
+  const r = raccontoDi(d.racconto);
   const cambiati = d.stampCorrente && d.stamp && d.stampCorrente !== d.stamp;
   const tappe = d.tappe.map((t, i) => `<tr><td>${i === 0 ? 'Partenza' : i === d.tappe.length - 1 ? 'Arrivo' : `Tappa ${i}`}</td>` +
     `<td class="num">${fmt(t.kmDallaPartenza, 2)} km</td><td class="num">${ore(t.oreDallaPartenza)}</td></tr>`).join('');
@@ -62,7 +90,7 @@ function render(d) {
   } else if (d.poi.length) {
     poi = `<table><thead><tr><th>Luogo</th><th>Quota</th><th>Nota dell’assistente</th></tr></thead><tbody>` +
       d.poi.map(p => `<tr><td><strong>${esc(p.name)}</strong>${TIPI_POI[p.kind] ? `<br><span class="tipo">${esc(TIPI_POI[p.kind])}</span>` : ''}</td>` +
-        `<td class="num">${p.ele != null ? `${fmt(p.ele, 0)} m` : '—'}</td><td>${esc(p.nota ?? '')}</td></tr>`).join('') +
+        `<td class="num">${p.ele != null ? `${fmt(p.ele, 0)} m` : '—'}</td><td>${esc(p.nota ?? '')}${r.luogo(p.osmId) ? `<div class="racconto-luogo"><p class="etichetta"><strong>L’assistente racconta</strong></p>${r.luogo(p.osmId)}</div>` : ''}</td></tr>`).join('') +
       '</tbody></table>';
     if (d.poiMancanti) poi += `<p class="avviso">${d.poiMancanti === 1 ? 'Un punto scelto non è più presente' : `${d.poiMancanti} punti scelti non sono più presenti`} nei dati.</p>`;
   } else if (d.poiMancanti) {
@@ -75,6 +103,7 @@ function render(d) {
       <button type="button" id="stampa" class="no-print">Stampa o salva in PDF</button>
     </header>
     ${cambiati ? '<p class="avviso">I dati sono cambiati da quando questo giro è stato progettato: ricontrolla tempi e difficoltà.</p>' : ''}
+    ${r.introduzione ? riquadro('Presentazione dell’assistente', r.introduzione) : ''}
     <section class="giro">
       <h2>Il percorso</h2>
       <div id="mappa" role="img" aria-label="Mappa del giro"></div>
@@ -95,7 +124,9 @@ function render(d) {
     </section>
     ${tappe ? `<section><h2>Tappe</h2><table><thead><tr><th>Punto</th><th>Km dalla partenza</th><th>Tempo</th></tr></thead><tbody>${tappe}</tbody></table></section>` : ''}
     ${sentieri ? `<section><h2>Sentieri</h2><table id="sentieri"><thead><tr><th>Numero</th><th>Difficoltà</th><th>Lunghezza</th></tr></thead><tbody>${sentieri}</tbody></table></section>` : ''}
-    ${poi ? `<section><h2>Luoghi lungo il giro</h2>${poi}</section>` : ''}
+    ${poi ? `<section><h2>Luoghi lungo il giro</h2>${r.haLuoghi && !r.introduzione && !r.consigli ? `<p class="avviso-racconto">${esc(AVVISO_RACCONTO)}</p>` : ''}${poi}</section>` : ''}
+    ${r.consigli ? riquadro('Consigli dell’assistente', r.consigli) : ''}
+    ${r.fonti ? riquadro('Fonti citate dall’assistente', r.fonti, false) : ''}
     <footer>
       <p>${esc(d.avvertenza)}</p>
       <p>Punti di interesse: OpenStreetMap, dati del ${dataIt(d.stamp)}.</p>

@@ -28,7 +28,7 @@ it('restituisce i campi della scheda, con i poi risolti', () => {
   expect(d.stamp).toBe(stamp);
   expect(d.stampCorrente).toBe(stamp);
   expect(d.avvertenza).toBe(WARNING);
-  expect(d.poi).toEqual([{name: 'Monte Serra', kind: 'peak', ele: 917, lonLat: [10.5, 43.75], nota: 'Cima'}]);
+  expect(d.poi).toEqual([{osmId: 1, name: 'Monte Serra', kind: 'peak', ele: 917, lonLat: [10.5, 43.75], nota: 'Cima'}]);
   expect(d.poiMancanti).toBe(1);
   expect(d.poiNonDisponibili).toBe(false);
 });
