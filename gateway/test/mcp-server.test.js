@@ -259,6 +259,33 @@ it('istruzioni: la conferma sta dopo l arricchimento e prima dell export, e le f
   for (const n of [1, 2, 3, 4, 5]) expect(fase(n)).not.toContain('giro_finale');
 });
 
+it('istruzioni: documento_giro viene dopo il gate e dopo giro_finale', () => {
+  const iDoc = INSTRUCTIONS.indexOf('\n7. ');
+  expect(iDoc).toBeGreaterThan(INSTRUCTIONS.indexOf('\n6. '));
+  expect(iDoc).toBeGreaterThan(INSTRUCTIONS.search(/conferma/i));
+  expect(fase(7)).toContain('documento_giro');
+  expect(fase(7)).toMatch(/deliverable/i);
+  // le fasi prima del documento non lo chiamano
+  for (const n of [1, 2, 3, 4, 5, 6]) expect(fase(n)).not.toContain('documento_giro');
+});
+
+it('istruzioni: gli slot del documento, senza numeri ripetuti, fonti nel loro campo', () => {
+  const f = fase(7);
+  for (const slot of ['introduzione', 'luoghi', 'consigli', 'fonti']) expect(f).toContain(`"${slot}"`);
+  expect(f).toMatch(/non\s+ripete i numeri/i);
+});
+
+it('istruzioni: ognuno dei tre conteggi ha il suo significato, senza scambi', () => {
+  const f = fase(7);
+  expect(f).toMatch(/"luoghiIgnorati" = osmId che non sono nel giro/);
+  expect(f).toMatch(/"luoghiSenzaTesto" = testo vuoto/);
+  expect(f).toMatch(/"luoghiDuplicati" = stesso osmId ripetuto/);
+});
+
+it('istruzioni: se il profilo lo sceglie l assistente, lo dichiara', () => {
+  expect(INSTRUCTIONS).toMatch(/non l'ha chiesto l'utente[^.]*dichiara quale/i);
+});
+
 it('istruzioni: i passi si saltano se l informazione c e gia, il gate no', () => {
   expect(INSTRUCTIONS).toMatch(/salta/i);
   expect(INSTRUCTIONS).toMatch(/gate[^.]*(mai|non si salta)|(mai|non si salta)[^.]*gate/i);
