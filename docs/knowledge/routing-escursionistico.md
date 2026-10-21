@@ -16,6 +16,17 @@ Requisiti: [overview](../features/routing-escursionistico/overview.md).
   sconosciuti oltre 500 m stanno in `horse_scale=impossible` (`horse_rating`
   6), che nessun profilo usa per il suo significato. I valori originali sono in
   `ways.sqlite`, che il gateway rimette nei dettagli tramite `osm_way_id`.
+- **Difficolta' in bici**: col profilo `mtb` e' la sigla CAI per il
+  cicloescursionismo (`TC`, `MC`, `BC`, `OC`, `EC`) da `cai_scale:mtb` sulle
+  relazioni `route=mtb`, massima fra quelle che si sovrappongono; dove manca, il
+  livello di `mtb:scale` nel suo vocabolario (`S0`-`S6`); dove mancano entrambi,
+  sconosciuta. Il `+` delle sigle CAI e i modificatori di `mtb:scale` non
+  cambiano il grado. `cai_scale:mtb:uphill` si legge e si conserva, ma la
+  difficolta' mostrata e' quella di discesa. I segnavia degli itinerari MTB
+  stanno in un elenco separato da quelli dei sentieri a piedi. Il profilo `mtb`
+  sceglie il percorso con `mtb_rating` di GraphHopper, che e' un'altra cosa
+  dalla difficolta' mostrata.
+
 - **Grafo sul rettangolo del DEM** (`tools/bbox.sh`), ritagliato con
   `--strategy simple`; prima dell'import ogni tile z13 toccata dalle vie deve
   avere le quote (`prepare/check-tiles.py`).
@@ -52,6 +63,16 @@ Requisiti: [overview](../features/routing-escursionistico/overview.md).
   DEM e quei tratti avrebbero quota 0 (GraphHopper la mette in silenzio).
 - **Rientro con tre candidati e il tratto saltato pesato il doppio**: con il
   "resto del giro" nel punteggio vinceva sempre il candidato piu' lontano.
+- **Le sigle CAI si riportano, non si deducono** (oc:8820): una sigla CAI vale
+  perche' l'ha assegnata il CAI. Ricavarla da un'altra scala o dalla sede
+  stradale significa scrivere al posto suo, e toglie autorevolezza proprio al
+  dato che il cliente chiede di vedere. Dove il dato non c'e', si dice che non
+  c'e': in provincia di Parma la difficolta' in bici copre circa il 12% dei
+  tratti contro il 21% a piedi (Overpass, 21/10/2026).
+- **La tabella dei tratti della preview mostra le fonti, non una difficolta'
+  risolta** (oc:8820): una colonna sola direbbe `E` anche quando il valore viene
+  da `sac_scale`, cioe' dedurrebbe una sigla CAI da un dato che CAI non e'.
+
 - **Preferenze nel profilo, non per richiesta**: con LM una richiesta puo' solo
   restringere un profilo (`docs/core/custom-models.md` di GraphHopper).
 
@@ -66,5 +87,14 @@ Requisiti: [overview](../features/routing-escursionistico/overview.md).
   rilevanti, e le zone che contano stanno dentro.
 - **12 candidati nel rientro** (superata): troppo carico per richiesta, e una
   cache di posizioni avrebbe contraddetto "nessuna coordinata conservata".
+- **Tradurre `mtb:scale` nelle sigle CAI** (oc:8820, scartata): la
+  corrispondenza fra Singletrail-Skala e scala CAI sarebbe stata una nostra
+  invenzione, e avrebbe contraddetto il dato ufficiale dove non coincide.
+- **Dedurre `TC` dalle sterrate carrozzabili** (oc:8820, scartata): avrebbe
+  colorato molta piu' mappa, ma nella cella di prova 8.844 `highway=track` su
+  28.919 hanno `tracktype` da `grade3` in giu', cioe' un fondo che chi ha
+  mappato non descrive come compatto: la deduzione avrebbe contraddetto proprio
+  loro.
+
 - **Lucchetto condiviso negli script di wm-tiles** (scartata): avrebbe toccato la
   pipeline di wm-tiles; al suo posto memoria libera, `pgrep` e `oom_score_adj`.

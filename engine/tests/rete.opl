@@ -19,10 +19,13 @@ n31 v1 x9.996 y44.006
 n32 v1 x10.002 y44.006
 n33 v1 x10.002 y44.010
 n34 v1 x9.996 y44.010
+n90 v1 x10.006 y44.004 Tnatural=peak,name=Monte%20%Prova,ele=917,wikidata=Q999999,wikipedia=it:Monte%20%Prova
+n91 v1 x10.008 y44.002 Tamenity=drinking_water,name=Fonte%20%di%20%Prova
+n92 v1 x10.012 y44.005 Tnatural=peak,ele=500
 w1 v1 Thighway=path Nn1,n2
 w2 v1 Thighway=path Nn1,n3
 w3 v1 Thighway=path Nn3,n2
-w4 v1 Thighway=path Nn2,n4
+w4 v1 Thighway=path,mtb:scale=2 Nn2,n4
 w5 v1 Thighway=path Nn2,n5
 w6 v1 Thighway=path,sac_scale=hiking,access=no,foot=yes Nn1,n6
 w7 v1 Thighway=path,sac_scale=hiking,foot=no Nn1,n7
@@ -39,3 +42,5 @@ r1 v1 Ttype=route,route=hiking,network=lwn,cai_scale=EE,ref=139 Mw1@
 r2 v1 Ttype=route,route=hiking,network=lwn,cai_scale=T,ref=00 Mw2@,w3@,w5@
 r3 v1 Ttype=route,route=hiking,network=lwn,ref=00 Mw2@
 r4 v1 Ttype=route,route=hiking,network=lwn Mw2@
+r5 v1 Ttype=route,route=mtb,cai_scale:mtb=MC+,cai_scale:mtb:uphill=BC,ref=MTB1 Mw2@,w5@
+r6 v1 Ttype=route,route=mtb,cai_scale:mtb=BC,ref=MTB2 Mw2@

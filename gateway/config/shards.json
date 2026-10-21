@@ -17,6 +17,23 @@
       "perSecond": 1
     }
   },
+  "mcp": {
+    "profiles": {
+      "prudente": "prudente",
+      "escursionista": "escursionista",
+      "esperto": "esperto",
+      "alpinista": "alpinista",
+      "mtb": "mtb",
+      "libero": "libero"
+    },
+    "origins": [],
+    "limits": true,
+    "maxPoints": 25,
+    "rate": {
+      "capacity": 120,
+      "perSecond": 4
+    }
+  },
   "preview": {
     "profiles": {
       "prudente": "prudente",
