@@ -20,8 +20,9 @@ from shapely import wkb
 from shapely.geometry import LineString, Point
 from shapely.strtree import STRtree
 
-from difficulty import (GLACIER_RATING, POOR_VISIBILITY, cai_to_rating,
-                        rating_to_sac, sac_to_rating)
+from difficulty import (GLACIER_RATING, POOR_VISIBILITY, cai_mtb_to_rating,
+                        cai_to_rating, mtb_scale_level, rating_to_sac,
+                        sac_to_rating)
 
 LONG_CHAIN_M = 500
 # Indice delle posizioni dei nodi: di serie in memoria; sul PBF nazionale su file
@@ -106,6 +107,21 @@ def effective(cai_values, own_cai, own_sac, glacier, visibility, via_ferrata=Fal
     return rating, origin
 
 
+def effective_mtb(cai_mtb_values, own_mtb_scale):
+    """Difficolta' in bici: due valori distinti, il secondo subentra solo dove
+    manca il primo. La sigla CAI dell'itinerario si riporta com'e'; dove non
+    c'e' vale il livello di mtb:scale, nel suo vocabolario (Singletrail-Skala).
+    Le due scale non si traducono l'una nell'altra: una sigla CAI vale perche'
+    l'ha assegnata il CAI."""
+    ratings = [r for r in (cai_mtb_to_rating(v) for v in cai_mtb_values) if r]
+    if ratings:
+        return max(ratings), "cai_mtb"
+    level = mtb_scale_level(own_mtb_scale)
+    if level is None:
+        return 0, "none"
+    return level, "mtb_scale"
+
+
 def is_military(tags):
     return tags.get("landuse") == "military" or "military" in tags
 
@@ -119,9 +135,20 @@ class Relations(osmium.SimpleHandler):
         self.refs_by_way = defaultdict(set)    # segnavia (ref) delle relazioni
         self.rels_by_way = defaultdict(set)    # id delle relazioni: il gancio verso osmfeatures
         self.unknown_cai = Counter()
+        # gli itinerari in bici restano separati da quelli a piedi: un tratto puo'
+        # stare in entrambi, e i due elenchi hanno pubblico diverso
+        self.cai_mtb_by_way = defaultdict(list)
+        self.cai_mtb_up_by_way = defaultdict(list)
+        self.refs_mtb_by_way = defaultdict(set)
+        self.rels_mtb_by_way = defaultdict(set)
+        self.unknown_cai_mtb = Counter()
 
     def relation(self, r):
-        if r.tags.get("route") not in ("hiking", "foot"):
+        route = r.tags.get("route")
+        if route == "mtb":
+            self.relation_mtb(r)
+            return
+        if route not in ("hiking", "foot"):
             return
         ref = r.tags.get("ref")
         for m in r.members:
@@ -139,6 +166,27 @@ class Relations(osmium.SimpleHandler):
             if m.type == "w":
                 self.cai_by_way[m.ref].append(cai)
 
+    def relation_mtb(self, r):
+        ref = r.tags.get("ref")
+        ways = [m.ref for m in r.members if m.type == "w"]
+        for way_id in ways:
+            self.rels_mtb_by_way[way_id].add(r.id)
+            if ref:
+                self.refs_mtb_by_way[way_id].add(ref)
+        cai = r.tags.get("cai_scale:mtb")
+        if cai is not None:
+            if cai_mtb_to_rating(cai) is None:
+                self.unknown_cai_mtb[cai] += 1
+            else:
+                for way_id in ways:
+                    self.cai_mtb_by_way[way_id].append(cai)
+        # la sigla di salita si conserva ma non entra nella difficolta' mostrata:
+        # in questo ciclo si mostra quella di discesa, come fa il CAI per primo
+        up = r.tags.get("cai_scale:mtb:uphill")
+        if up is not None and cai_mtb_to_rating(up) is not None:
+            for way_id in ways:
+                self.cai_mtb_up_by_way[way_id].append(up)
+
 
 class Areas(osmium.SimpleHandler):
     """Passata 1b: poligoni di ghiacciai e zone militari, su un estratto con solo quelli."""
@@ -148,6 +196,11 @@ class Areas(osmium.SimpleHandler):
         self.cai_by_way, self.unknown_cai = relations.cai_by_way, relations.unknown_cai
         self.refs_by_way = relations.refs_by_way
         self.rels_by_way = relations.rels_by_way
+        self.cai_mtb_by_way = relations.cai_mtb_by_way
+        self.cai_mtb_up_by_way = relations.cai_mtb_up_by_way
+        self.refs_mtb_by_way = relations.refs_mtb_by_way
+        self.rels_mtb_by_way = relations.rels_mtb_by_way
+        self.unknown_cai_mtb = relations.unknown_cai_mtb
         self.glaciers, self.military = [], []
         self.factory = osmium.geom.WKBFactory()
 
@@ -241,8 +294,18 @@ class Classify(osmium.SimpleHandler):
         self.flags[w.id] = rating | (MILITARY if military else 0) | (FERRATA if origin == "via_ferrata" else 0)
         refs = ";".join(sorted(self.areas.refs_by_way.get(w.id, ()))) or None
         rel_ids = ";".join(str(i) for i in sorted(self.areas.rels_by_way.get(w.id, ()))) or None
+        # difficolta' in bici, accanto a quella a piedi: un tratto ha entrambe
+        cai_mtb_values = self.areas.cai_mtb_by_way.get(w.id, [])
+        mtb_rating, mtb_origin = effective_mtb(cai_mtb_values, tags.get("mtb:scale"))
+        cai_mtb = max(cai_mtb_values, key=lambda v: cai_mtb_to_rating(v) or 0, default=None)
+        cai_mtb_up = max(self.areas.cai_mtb_up_by_way.get(w.id, []),
+                         key=lambda v: cai_mtb_to_rating(v) or 0, default=None)
+        refs_mtb = ";".join(sorted(self.areas.refs_mtb_by_way.get(w.id, ()))) or None
+        rel_ids_mtb = ";".join(str(i) for i in sorted(self.areas.rels_mtb_by_way.get(w.id, ()))) or None
         self.rows.append((w.id, cai, tags.get("sac_scale"), tags.get("horse_scale"), int(glacier), int(military),
-                          tags.get("trail_visibility"), origin, 0, refs, rel_ids))
+                          tags.get("trail_visibility"), origin, 0, refs, rel_ids,
+                          cai_mtb, cai_mtb_up, tags.get("mtb:scale"), mtb_rating, mtb_origin,
+                          refs_mtb, rel_ids_mtb))
         self.origins[origin] += 1
         self.horse += "horse_scale" in tags
         if len(self.rows) >= 50_000:
@@ -254,7 +317,7 @@ class Classify(osmium.SimpleHandler):
             self.unknown_len[w.id] = (length_m(nodes), ids[0])
 
     def flush(self):
-        self.db.executemany("insert into ways values (?,?,?,?,?,?,?,?,?,?,?)", self.rows)
+        self.db.executemany("insert into ways values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", self.rows)
         self.rows = []
 
     def mark_long_chains(self):
@@ -326,7 +389,9 @@ def enrich(src, dst, db_path, tiles_path=None):
     db.execute("drop table if exists ways")
     db.execute("create table ways (way_id integer primary key, cai text, sac text, horse text,"
                " glacier integer, military integer, visibility text, origin text, long_chain integer,"
-               " refs text, rel_ids text)")
+               " refs text, rel_ids text,"
+               " cai_mtb text, cai_mtb_up text, mtb_scale text, mtb_rating integer, mtb_origin text,"
+               " refs_mtb text, rel_ids_mtb text)")
     classify = Classify(areas, db)
     classify.apply_file(src, locations=True, idx=NODE_INDEX)
     long_chains = classify.mark_long_chains()
@@ -347,7 +412,8 @@ def enrich(src, dst, db_path, tiles_path=None):
     return {"ways": len(classify.flags), **classify.origins, "glaciers": len(areas.glaciers),
             "military_areas": len(areas.military), "long_chains": long_chains,
             "horse_scale_originali": classify.horse, "tiles_z13": len(classify.tiles),
-            "cai_unknown_values": dict(areas.unknown_cai), "pois": pois}
+            "cai_unknown_values": dict(areas.unknown_cai),
+            "cai_mtb_unknown_values": dict(areas.unknown_cai_mtb), "pois": pois}
 
 
 if __name__ == "__main__":

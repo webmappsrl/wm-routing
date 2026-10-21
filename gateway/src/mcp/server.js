@@ -21,7 +21,13 @@ const PROFILES = ['prudente', 'escursionista', 'esperto', 'alpinista', 'mtb', 'l
 
 export const INSTRUCTIONS = `Sei collegato a wm-routing, il routing escursionistico di Webmapp: percorsi
 calcolati su rete sentieristica OSM con quote dal modello del terreno,
-difficolta' SAC/CAI e tempi DIN 33466. Hai quattro tool: "route" (calcola il
+difficolta' SAC/CAI e tempi DIN 33466. La difficolta' e' scritta nella scala del
+profilo che hai chiesto, e il campo "profilo" dice quale: a piedi le sigle del
+CAI per l'escursionismo (T, E, EE, EEA), col profilo "mtb" quelle del CAI per il
+cicloescursionismo (TC, MC, BC, OC, EC, dalla piu' facile alla piu' difficile).
+Non confondere le due scale e non tradurre una nell'altra: un MC non e' un E.
+Dove la difficolta' manca vuol dire che nessuno l'ha dichiarata su OSM, e in bici
+succede spesso: dillo cosi', senza stimarla tu. Hai quattro tool: "route" (calcola il
 percorso: numeri, tappe, sentieri, avvisi, profilo altimetrico come immagine,
 link "linkPreview" e "linkGpx"), "poi_nearby" (punti di interesse vicino a un
 punto: nome, tipo, quota, osmId e, dove ci sono, gli identificatori

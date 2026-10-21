@@ -32,7 +32,10 @@ check(await page.locator('#elevation-axis').count() === 1, 'profilo altimetrico 
 await page.selectOption('#colorBy', 'origine', {timeout: 2000}).catch(() => fails.push('colori per origine del dato'));
 check((await txt('#legend-colors'))?.includes('cai_scale'), 'legenda dell\'origine con cai_scale');
 check(await page.locator('#segments tbody tr').count() > 3, 'tabella dei tratti');
-check((await txt('#segments'))?.includes('Origine'), 'tabella dei tratti: colonna origine');
+// la colonna "Difficolta'" mostra il valore e, fra parentesi, il tag OSM da cui
+// viene (oc:8820): la colonna "Origine" non c'e' piu'
+check((await txt('#segments'))?.includes('Difficoltà'), 'tabella dei tratti: colonna Difficoltà');
+check(await page.locator('#segments .fonte').count() > 0, 'tabella dei tratti: il tag della fonte accanto al valore');
 check((await txt('#results'))?.includes('Per difficoltà'), 'riepilogo per difficoltà nella scheda');
 
 // tratti calcolati con un altro profilo: il caso dei 12 punti, con escursionista

@@ -47,6 +47,10 @@
     #points li button { margin-left: auto; padding: 0 7px; }
     .legend { list-style: none; margin: 4px 0 0; padding: 0; }
     .legend li { display: flex; align-items: center; gap: 8px; margin: 3px 0; font-size: 12.5px; }
+    /* quale scala sta mostrando la legenda: cambiando profilo cambia il metro */
+    .legend li.legend-title { font-weight: 600; margin: 2px 0 5px; color: #1a1a1a; }
+    /* il tag OSM da cui viene il valore: accanto al valore, ma piu' tenue */
+    .fonte { color: #5f6368; font-size: 0.85em; }
     .swatch { width: 28px; height: 0; border-top: 5px solid; flex: none; }
     .swatch.dash { border-top-style: dashed; border-top-width: 3px; }
     .swatch.dot { width: 14px; height: 14px; border: 0; border-radius: 50%; }
@@ -90,7 +94,9 @@
     #err { background: var(--err-bg); color: var(--err-fg); white-space: pre-wrap; }
     #profile { width: 100%; height: 150px; display: block; }
     #segments-wrap { max-height: 320px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; margin-top: 6px; }
-    #segments { border-collapse: collapse; width: 100%; font-size: 11.5px; }
+    /* la tabella si allarga quanto serve e il contenitore scorre: meglio
+       scorrere che troncare "strada residenziale" in "strada residen..." */
+    #segments { border-collapse: collapse; width: max-content; min-width: 100%; font-size: 11.5px; }
     #segments th { position: sticky; top: 0; background: var(--soft); text-align: left; font-weight: 600;
                    padding: 4px 5px; border-bottom: 1px solid var(--line); white-space: nowrap; }
     #segments td { padding: 3px 5px; border-bottom: 1px solid #eef1f3; white-space: nowrap; }

@@ -47,3 +47,12 @@ it('non fa passare la risposta grezza ne\' horse', () => {
   expect(JSON.stringify(o)).not.toMatch(/horse/i);
   expect(o.avvisi.warning).toBe(fixture.warning);
 });
+
+it('col profilo mtb i tratti portano le sigle della scala CAI per la mountain bike', () => {
+  const mtb = {...fixture, profile: 'mtb',
+    segments: fixture.segments.map((s, i) => ({...s, profile: 'mtb', difficulty: i % 2 ? 'BC' : 'MC'}))};
+  const o = compactRoute(mtb);
+  expect(o.profilo).toBe('mtb');
+  const sigle = new Set(o.sentieri.map(s => s.difficolta).filter(Boolean));
+  expect([...sigle].sort()).toEqual(['BC', 'MC']);
+});

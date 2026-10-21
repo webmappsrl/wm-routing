@@ -1,9 +1,11 @@
 import {it, expect} from 'vitest';
 import {summarizeDetails} from '../src/details.js';
-import {ratingToCai} from '../src/difficulty.js';
+import {ratingToCai, ratingToCaiMtb, mtbDifficulty} from '../src/difficulty.js';
 
 const rows = {
-  11: {cai: 'EE', sac: 'alpine_hiking', origin: 'cai', long_chain: 0, refs: '00;139', rel_ids: '9417478;123'},
+  11: {cai: 'EE', sac: 'alpine_hiking', origin: 'cai', long_chain: 0, refs: '00;139', rel_ids: '9417478;123',
+       cai_mtb: 'BC', cai_mtb_up: 'MC', mtb_scale: '3', mtb_rating: 3, mtb_origin: 'cai_mtb',
+       refs_mtb: 'MTB1', rel_ids_mtb: '555'},
   12: {cai: null, sac: null, origin: 'none', long_chain: 1},
 };
 const waysDb = {prepare: () => ({get: id => rows[id]})};
@@ -77,4 +79,62 @@ it('tabella laterale vecchia, senza la colonna refs: segmenti con ref null', () 
   const old = summarizeDetails(path, oldDb).segments[0];
   expect(old.ref).toBe(null);
   expect(old.relIds).toBe(null);
+});
+
+it('ratingToCaiMtb', () => {
+  expect(ratingToCaiMtb(1)).toBe('TC');
+  expect(ratingToCaiMtb(3)).toBe('BC');
+  expect(ratingToCaiMtb(5)).toBe('EC');
+  expect(ratingToCaiMtb(0)).toBe(null);
+});
+
+it('le due scale restano distinte: nessuna sigla CAI ricavata da mtb:scale', () => {
+  expect(mtbDifficulty(3, 'cai_mtb')).toBe('BC');   // la sigla del CAI, riportata
+  expect(mtbDifficulty(2, 'mtb_scale')).toBe('S2'); // la Singletrail, nel suo vocabolario
+  expect(mtbDifficulty(0, 'mtb_scale')).toBe('S0');
+  expect(mtbDifficulty(0, 'none')).toBe(null);
+});
+
+const pathMtb = {
+  points: {coordinates: [[10, 44], [10.001, 44], [10.002, 44], [10.003, 44]]},
+  details: {
+    osm_way_id: [[0, 2, 11], [2, 3, 12]],
+    hike_rating: [[0, 2, 3], [2, 3, 0]],
+    road_class: [[0, 3, 'path']],
+    get_off_bike: [[0, 2, true], [2, 3, false]],
+  },
+};
+
+it('col profilo mtb usa la scala MTB e affianca i segnavia dei due mondi', () => {
+  const seg = summarizeDetails(pathMtb, waysDb, 'mtb').segments[0];
+  expect(seg.difficulty).toBe('BC');
+  expect(seg.origin).toBe('cai_mtb');
+  // il numero dipinto sul sasso resta anche quando si pedala
+  expect(seg.ref).toBe('00;139');
+  expect(seg.refMtb).toBe('MTB1');
+  expect(seg.mtbScale).toBe('3');
+  expect(seg.caiMtbUp).toBe('MC');
+});
+
+it('la difficolta a piedi resta quella di sempre quando il profilo non e mtb', () => {
+  const seg = summarizeDetails(pathMtb, waysDb).segments[0];
+  expect(seg.difficulty).toBe('EE');
+  expect(seg.origin).toBe('cai');
+  expect(seg.ref).toBe('00;139');
+});
+
+it('il tratto da fare a piedi con la bici porta la condizione accanto al grado', () => {
+  const seg = summarizeDetails(pathMtb, waysDb, 'mtb').segments[0];
+  expect(seg.difficulty).toBe('BC');
+  expect(seg.dismount).toBe(true);
+});
+
+it('con una tabella laterale senza colonne MTB non va in errore', () => {
+  const oldDb = {prepare: cols => {
+    if (cols.includes('mtb_rating')) throw new Error('no such column');
+    return {get: id => ({cai: 'EE', sac: null, origin: 'cai', long_chain: 0, refs: '00'})};
+  }};
+  const seg = summarizeDetails(pathMtb, oldDb, 'mtb').segments[0];
+  expect(seg.difficulty).toBe(null);
+  expect(seg.origin).toBe('none');
 });

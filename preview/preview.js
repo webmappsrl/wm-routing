@@ -74,6 +74,27 @@ const COLOR_SETS = {
     {key: null, label: 'Sentiero di difficoltà sconosciuta', color: '#9e9e9e'},
     {key: 'road', label: 'Strada o forestale (nessuna difficoltà)', color: '#455a64'},
   ],
+  // Scala CAI per la mountain bike: stessa rampa di gravita' crescente della
+  // scala a piedi, perche' e' quella che si legge a distanza. Le voci che non
+  // sono gradi stanno in fondo, staccate, come via ferrata e ghiacciaio.
+  difficolta_mtb: [
+    {key: 'TC', label: 'TC - turistico (scala CAI)', color: '#2e7d32'},
+    {key: 'MC', label: 'MC - media capacità tecnica (scala CAI)', color: '#f9a825'},
+    {key: 'BC', label: 'BC - buone capacità tecniche (scala CAI)', color: '#e65100'},
+    {key: 'OC', label: 'OC - ottime capacità tecniche (scala CAI)', color: '#6a1b9a'},
+    {key: 'EC', label: 'EC - massimo livello (scala CAI)', color: '#ad1457'},
+    // dove la sigla CAI manca vale mtb:scale, nel suo vocabolario: non si
+    // traduce in una sigla CAI, che varrebbe solo se l'avesse assegnata il CAI
+    {key: 'S0', label: 'S0 - mtb:scale, nessuna difficoltà tecnica', color: '#81c784'},
+    {key: 'S1', label: 'S1 - mtb:scale, ostacoli piccoli', color: '#aed581'},
+    {key: 'S2', label: 'S2 - mtb:scale, radici e gradini', color: '#ffb74d'},
+    {key: 'S3', label: 'S3 - mtb:scale, fondo molto sconnesso', color: '#ff8a65'},
+    {key: 'S4', label: 'S4 - mtb:scale, passaggi da trial', color: '#ba68c8'},
+    {key: 'S5', label: 'S5 - mtb:scale, al limite del pedalabile', color: '#ce93d8'},
+    {key: 'S6', label: 'S6 - mtb:scale, non pedalabile', color: '#f48fb1'},
+    {key: null, label: 'Difficoltà in bici non indicata in OSM', color: '#9e9e9e'},
+    {key: 'road', label: 'Strada o forestale (nessuna difficoltà)', color: '#455a64'},
+  ],
   segnato: [
     {key: true, label: 'Sentiero segnato (rete escursionistica)', color: '#2e7d32'},
     {key: false, label: 'Non segnato', color: '#9e9e9e'},
@@ -86,6 +107,8 @@ const COLOR_SETS = {
   origine: [
     {key: 'cai', label: 'Da cai_scale (relazione della rete CAI)', color: '#1565c0'},
     {key: 'sac', label: 'Da sac_scale della singola via', color: '#00897b'},
+    {key: 'cai_mtb', label: 'Da cai_scale:mtb (itinerario MTB segnato)', color: '#6a1b9a'},
+    {key: 'mtb_scale', label: 'Da mtb:scale della singola via', color: '#00acc1'},
     {key: 'special', label: 'Via ferrata o ghiacciaio', color: '#ad1457'},
     {key: 'none', label: 'Sentiero di difficoltà sconosciuta', color: '#9e9e9e'},
     {key: 'road', label: 'Strada o forestale (nessuna difficoltà)', color: '#455a64'},
@@ -99,23 +122,31 @@ const COLOR_SETS = {
 };
 const PAVED = new Set(['asphalt', 'paved', 'concrete', 'paving_stones', 'sett', 'cobblestone']);
 
+// In bici si legge la scala CAI per la mountain bike. Vale per segmento e non
+// per giro: un tratto calcolato col profilo di ripiego resta nella sua scala.
+const isMtb = seg => seg?.profile === 'mtb';
+const diffSet = seg => (isMtb(seg) ? 'difficolta_mtb' : 'difficolta');
+
 function category(seg, by) {
-  if (by === 'difficolta') {
-    if (seg.longChain) return 'long';
+  if (by === 'difficolta' || by === 'difficolta_mtb') {
+    if (!isMtb(seg) && seg.longChain) return 'long';
     if (seg.difficulty) return seg.difficulty;
     return seg.roadClass && seg.roadClass !== 'path' ? 'road' : null;
   }
   if (by === 'segnato') return !!seg.network && seg.network !== 'missing';
   if (by === 'origine') {
     if (seg.origin === 'glacier' || seg.origin === 'via_ferrata') return 'special';
-    if (seg.origin === 'cai' || seg.origin === 'sac') return seg.origin;
+    if (['cai', 'sac', 'cai_mtb', 'mtb_scale'].includes(seg.origin)) return seg.origin;
     return seg.roadClass && seg.roadClass !== 'path' ? 'road' : 'none';
   }
   if (by === 'fondo') return !seg.surface || seg.surface === 'missing' ? 'ignoto' : PAVED.has(seg.surface) ? 'asfalto' : 'sterrato';
   const s = Math.abs(seg.slope ?? 0);
   return s > 25 ? 3 : s > 15 ? 2 : s > 7 ? 1 : 0;
 }
-const segColor = (seg, by) => (COLOR_SETS[by].find(c => c.key === category(seg, by)) ?? {color: '#9e9e9e'}).color;
+const segColor = (seg, by) => {
+  const set = by === 'difficolta' ? diffSet(seg) : by;
+  return (COLOR_SETS[set].find(c => c.key === category(seg, set)) ?? {color: '#9e9e9e'}).color;
+};
 
 function swatch(item) {
   const cls = item.dot ? 'swatch dot' : item.dash ? 'swatch dash' : 'swatch';
@@ -124,7 +155,14 @@ function swatch(item) {
 }
 function drawLegends() {
   $('legend-lines').innerHTML = LINES.map(l => `<li>${swatch(l)}${l.label}</li>`).join('');
-  $('legend-colors').innerHTML = COLOR_SETS[$('colorBy').value].map(c => `<li>${swatch(c)}${c.label}</li>`).join('');
+  const by = $('colorBy').value;
+  // in bici si mostra l'altra scala: la legenda lo dichiara, cosi' e' chiaro
+  // che cambiando profilo cambia il metro, non solo i colori
+  const set = by === 'difficolta' && state.scalaMtb ? 'difficolta_mtb' : by;
+  const titolo = set === 'difficolta_mtb' ? 'Difficolt\u00e0 in bici: sigle CAI dove ci sono, altrimenti mtb:scale'
+    : set === 'difficolta' ? 'Difficolt\u00e0 per chi cammina (scala CAI)' : '';
+  $('legend-colors').innerHTML = (titolo ? `<li class="legend-title">${titolo}</li>` : '') +
+    COLOR_SETS[set].map(c => `<li>${swatch(c)}${c.label}</li>`).join('');
 }
 
 // --- telefono: pannello dal basso, schede, riepilogo --------------------------
@@ -217,6 +255,7 @@ $('fit').addEventListener('click', fitRoute);
 // --- mappa ---------------------------------------------------------------
 
 const state = {
+  scalaMtb: false,               // la legenda mostra la scala CAI della mountain bike
   points: (q.get('p') ?? '').split(';').filter(Boolean).map(s => s.split(',').map(Number)),
   poi: [],                       // per ogni punto, il punto di interesse delle tile da cui viene (o null)
   results: {},
@@ -323,6 +362,11 @@ function draw() {
   const prod = state.results.produzione;
   if (prod) addLine(prod.geometry.coordinates, lineStyle('#1f6feb', 3, [8, 6]), {info: {title: 'Produzione'}});
   const nuovo = state.results.nuovo;
+  // la legenda segue la scala del giro appena calcolato
+  if (state.scalaMtb !== (nuovo?.profile === 'mtb')) {
+    state.scalaMtb = nuovo?.profile === 'mtb';
+    drawLegends();
+  }
   if (nuovo) {
     const c = nuovo.geometry.coordinates;
     const segs = nuovo.segments?.length ? nuovo.segments : [{from: 0, to: c.length - 1}];
@@ -330,8 +374,9 @@ function draw() {
       const styles = [lineStyle('#ffffff', 8), lineStyle(segColor(seg, by), 5)];
       if (seg.profile && seg.profile !== nuovo.profile) styles.push(lineStyle('#111111', 1.5, [4, 4]));
       // il segnavia scritto lungo il tratto, come sui cartelli
-      if (seg.ref) styles.push(new ol.style.Style({text: new ol.style.Text({
-        text: seg.ref.replaceAll(';', ' · '), placement: 'line', repeat: 320, font: 'bold 11px system-ui',
+      const etichetta = [seg.ref, isMtb(seg) ? seg.refMtb : null].filter(Boolean).join(';');
+      if (etichetta) styles.push(new ol.style.Style({text: new ol.style.Text({
+        text: etichetta.replaceAll(';', ' · '), placement: 'line', repeat: 320, font: 'bold 11px system-ui',
         fill: new ol.style.Fill({color: '#7a2000'}), stroke: new ol.style.Stroke({color: '#fff', width: 3})})}));
       addLine(c.slice(seg.from, seg.to + 1), styles, {seg});
     }
@@ -396,11 +441,24 @@ const pct = x => (x === null || x === undefined ? 'n.d.' : `${Math.round(x * 100
 const timeShort = h => (h < 1 ? `${Math.round(h * 60)} min` : hours(h));
 // difficolta' complessiva del giro: la massima dei tratti (linguaggio delle guide)
 const DIFF_ORDER = ['T', 'E', 'EE', 'EEA', 'via ferrata', 'ghiacciaio'];
-function overallDifficulty(r) {
+// In bici i vocabolari sono due e non si mettono in fila insieme: ordinarli in
+// una scala sola sarebbe la traduzione fra scale che questo servizio non fa.
+// Si prende la massima dentro ciascuno e si mostrano tutte e due.
+const DIFF_ORDER_CAI_MTB = ['TC', 'MC', 'BC', 'OC', 'EC'];
+const DIFF_ORDER_S = ['S0', 'S1', 'S2', 'S3', 'S4', 'S5', 'S6'];
+const massima = (segments, ordine) => {
   let top = null;
-  for (const s of r.segments ?? [])
-    if (s.difficulty && DIFF_ORDER.indexOf(s.difficulty) > DIFF_ORDER.indexOf(top)) top = s.difficulty;
+  for (const s of segments)
+    if (s.difficulty && ordine.indexOf(s.difficulty) > ordine.indexOf(top)) top = s.difficulty;
   return top;
+};
+// ritorna la lista delle massime: una a piedi, fino a due in bici
+function overallDifficulty(r) {
+  // un segmento calcolato col profilo di ripiego parla la lingua di quel
+  // profilo e non entra nel massimo del giro
+  const segs = (r.segments ?? []).filter(s => !s.profile || s.profile === r.profile);
+  if (r.profile !== 'mtb') return [massima(segs, DIFF_ORDER)].filter(Boolean);
+  return [massima(segs, DIFF_ORDER_CAI_MTB), massima(segs, DIFF_ORDER_S)].filter(Boolean);
 }
 // quota minima e massima e tratto piu' ripido (almeno 30 m: sotto e' rumore del DEM)
 function hikeStats(r) {
@@ -417,9 +475,11 @@ function hikeStats(r) {
 const hours = h => `${Math.floor(h)} h ${String(Math.round((h % 1) * 60)).padStart(2, '0')} min`;
 
 function card(title, color, r, extra = '') {
-  const diff = r.segments?.length ? overallDifficulty(r) : null;
-  const badge = diff ? ` <span class="badge" title="Difficoltà complessiva: la massima dei tratti" ` +
-    `style="background:${segColor({difficulty: diff}, 'difficolta')}">${DIFF_SHORT[diff] ?? diff}</span>` : '';
+  const diffs = r.segments?.length ? overallDifficulty(r) : [];
+  // in bici possono essere due: la massima fra le sigle CAI e quella fra i
+  // livelli di mtb:scale, ciascuna nel suo vocabolario
+  const badge = diffs.map(d => ` <span class="badge" title="Difficoltà complessiva: la massima dei tratti" ` +
+    `style="background:${segColor({difficulty: d, profile: r.profile}, 'difficolta')}">${DIFF_SHORT[d] ?? d}</span>`).join('');
   const st = r.segments?.length ? hikeStats(r) : null;
   return `<div class="card"><h3>${swatch({color, dash: color === '#1f6feb'})}${title}${badge}</h3><dl>
     <dt>Distanza</dt><dd>${(r.distanceM / 1000).toFixed(2)} km</dd>
@@ -432,14 +492,20 @@ function card(title, color, r, extra = '') {
     <dd>${hours(r.timeH)} <small>(${r.timeSource})</small></dd>
     <dt title="Parte del percorso su sentieri della rete escursionistica (relazioni route=hiking)">Su sentieri segnati</dt>
     <dd>${pct(lengthOn(r, s => s.network && s.network !== 'missing'))}</dd>
-    ${r.unknownShare !== undefined ? `<dt title="Sentieri senza cai_scale né sac_scale: la difficoltà non si conosce">Difficoltà sconosciuta</dt><dd>${pct(r.unknownShare)}</dd>` : ''}
+    ${r.unknownShare !== undefined ? `<dt title="${r.profile === 'mtb'
+      ? 'Sentieri senza cai_scale:mtb né mtb:scale: la difficoltà in bici non si conosce'
+      : 'Sentieri senza cai_scale né sac_scale: la difficoltà non si conosce'}">Difficoltà sconosciuta${
+      r.profile === 'mtb' ? ' (in bici)' : ''}</dt><dd>${pct(r.unknownShare)}</dd>` : ''}
     ${r.profileVersion ? `<dt>Profilo</dt><dd>${r.profile}, versione ${r.profileVersion}</dd>` : ''}
   </dl>${extra}</div>`;
 }
 
-const DIFF_SHORT = {T: 'T', E: 'E', EE: 'EE', EEA: 'EEA', 'via ferrata': 'ferrata', ghiacciaio: 'ghiacciaio'};
-const ORIGIN_SHORT = {cai: 'cai_scale', sac: 'sac_scale', glacier: 'ghiacciaio', via_ferrata: 'via ferrata', none: 'sconosciuta'};
-const diffLabel = s => (s.longChain ? 'sconosciuta (lunga)' : DIFF_SHORT[s.difficulty] ?? (s.roadClass && s.roadClass !== 'path' ? '—' : 'sconosciuta'));
+const DIFF_SHORT = {T: 'T', E: 'E', EE: 'EE', EEA: 'EEA', 'via ferrata': 'ferrata', ghiacciaio: 'ghiacciaio',
+  TC: 'TC', MC: 'MC', BC: 'BC', OC: 'OC', EC: 'EC',
+  S0: 'S0', S1: 'S1', S2: 'S2', S3: 'S3', S4: 'S4', S5: 'S5', S6: 'S6'};
+const ORIGIN_SHORT = {cai: 'cai_scale', sac: 'sac_scale', glacier: 'ghiacciaio', via_ferrata: 'via ferrata', none: 'sconosciuta',
+  cai_mtb: 'cai_scale:mtb', mtb_scale: 'mtb:scale'};
+const diffLabel = s => (!isMtb(s) && s.longChain ? 'sconosciuta (lunga)' : DIFF_SHORT[s.difficulty] ?? (s.roadClass && s.roadClass !== 'path' ? '—' : 'sconosciuta'));
 const originLabel = s => (s.roadClass && s.roadClass !== 'path' && s.origin === 'none' ? 'strada' : ORIGIN_SHORT[s.origin] ?? s.origin ?? '—');
 const slopeBucket = s => category(s, 'pendenza');
 
@@ -451,21 +517,28 @@ function groupSegments(r) {
   const rows = [];
   const add = (m, k, len) => k && m.set(k, (m.get(k) ?? 0) + len);
   for (const s of r.segments ?? []) {
-    const key = [diffLabel(s), originLabel(s), s.roadClass, s.network && s.network !== 'missing', s.profile, s.ref ?? ''].join('|');
+    // i valori grezzi entrano nella chiave perche' ora si mostrano: due tratti
+    // con rating uguale ma tag diversi (EEA:F ed EEA:PD) non sono una riga sola
+    const key = [diffLabel(s), originLabel(s), s.roadClass, s.network && s.network !== 'missing', s.profile,
+                 s.ref ?? '', isMtb(s) ? s.mtbScale : s.sac, isMtb(s) ? s.caiMtb : s.cai].join('|');
     const len = cum[s.to] - cum[s.from];
     let last = rows.at(-1);
     if (!last || last.key !== key) {
       last = {key, seg: s, from: s.from, to: s.to, startM: cum[s.from], lenM: 0, slopeSum: 0,
-              surfaces: new Map(), sacs: new Map(), ford: false, dismount: false};
+              surfaces: new Map(), sacs: new Map(), cais: new Map(), ups: new Map(), ford: false, dismount: false};
       rows.push(last);
     }
     last.to = s.to; last.lenM += len; last.slopeSum += Math.abs(s.slope ?? 0) * len;
     add(last.surfaces, s.surface && s.surface !== 'missing' ? s.surface : null, len);
-    add(last.sacs, s.sac, len);
+    // il grezzo e la sigla seguono la scala del segmento, non quella del giro:
+    // un tratto calcolato col profilo di ripiego parla la lingua di quel profilo
+    add(last.sacs, isMtb(s) ? s.mtbScale : s.sac, len);
+    add(last.cais, isMtb(s) ? s.caiMtb : s.cai, len);
+    add(last.ups, s.caiMtbUp, len);
     last.ford ||= s.ford; last.dismount ||= s.dismount;
   }
   const top = m => [...m].sort((a, b) => b[1] - a[1])[0]?.[0];
-  for (const x of rows) { x.surface = top(x.surfaces); x.sac = top(x.sacs); }
+  for (const x of rows) { x.surface = top(x.surfaces); x.sac = top(x.sacs); x.cai = top(x.cais); x.up = top(x.ups); }
   return rows.filter(x => x.lenM >= 1 || rows.length === 1);
 }
 
@@ -488,24 +561,77 @@ function summary(r) {
     `${refs ? `<br><b>Segnavia</b>: ${refs}` : ''}</div>`;
 }
 
+// la fonte che il servizio sta usando per quel tratto
+const vinceCai = s => s.origin === 'cai' || s.origin === 'cai_mtb';
+// il pallino colorato sta accanto al valore in uso: senza valore niente pallino,
+// altrimenti segnerebbe un colore che non viene da quella colonna (una strada,
+// o un tratto di cui nessuno ha dichiarato la difficolta')
+const tag = s => `<span class="tag" style="background:${segColor(s, 'difficolta')}"></span>`;
+// via ferrata e ghiacciaio non stanno in nessuna delle due scale ma sono la
+// difficolta' di quel tratto: senza una parola resterebbero un colore e basta
+const FUORI_SCALA = {via_ferrata: 'via ferrata', glacier: 'ghiacciaio'};
+// il tag da cui viene il valore mostrato, scritto accanto al valore: cosi' si
+// vede subito se la difficolta' e' dichiarata dal CAI o presa da un'altra scala
+const TAG_ORIGINE = {cai: 'cai_scale', sac: 'sac_scale', cai_mtb: 'cai_scale:mtb', mtb_scale: 'mtb:scale'};
+// la difficolta' del tratto: valore, natura del dato, e il colore della mappa
+function cellaDifficolta(s, x) {
+  const fuori = FUORI_SCALA[s.origin];
+  // il livello di mtb:scale si scrive come lo scrivono mappa e legenda (S1),
+  // non come il numero nudo del tag: e' lo stesso dato con un nome solo
+  const valore = fuori ?? (vinceCai(s) ? x.cai : (s.origin === 'mtb_scale' ? s.difficulty : x.sac));
+  const tagOsm = fuori ? null : TAG_ORIGINE[s.origin];
+  // dove non c'e' un grado di difficolta' si scrive che cos'e' quel tratto
+  // (forestale, strada residenziale): dice che li' si passa, e perche' non ha
+  // un grado. "sconosciuta" resta solo per i sentieri, dove il grado esiste ma
+  // nessuno l'ha dichiarato.
+  const testo = valore
+    ? `${valore}${tagOsm ? ` <span class="fonte">(${tagOsm})</span>` : ''}`
+    : (s.roadClass && s.roadClass !== 'path' ? (ROAD_IT[s.roadClass] ?? s.roadClass) : 'sconosciuta');
+  return `${tag(s)}${testo}`;
+}
+// l'altro dato: si mostra solo quando c'e' e non e' quello mostrato, altrimenti
+// ripeterebbe la colonna accanto
+const altraFonte = (s, x) => (vinceCai(s) && x.sac ? x.sac : '—');
+// i segnavia a piedi restano visibili anche in bici: sono il numero dipinto sul
+// sasso. Quelli degli itinerari MTB si aggiungono, marcati come tali.
+const segnavia = s => {
+  const a = s.ref ? [s.ref] : [];
+  if (isMtb(s) && s.refMtb) a.push(`MTB ${s.refMtb}`);
+  return a.join(' · ') || (s.network && s.network !== 'missing' ? 'sì' : '—');
+};
+
 function drawSegments() {
   const r = state.results.nuovo;
   if (!r) { $('segments').innerHTML = ''; return; }
   const rows = groupSegments(r);
   const fb = rows.some(x => x.seg.profile && x.seg.profile !== r.profile);
   state.rows = rows;
-  $('segments').innerHTML = `<thead><tr><th>km</th><th>Lungh.</th><th>Difficoltà</th><th>Origine</th><th>sac_scale</th>` +
+  // in bici cambiano il dato grezzo (mtb:scale al posto di sac_scale) e si
+  // aggiungono la sigla di salita e i tratti da fare spingendo
+  const mtbView = r.profile === 'mtb';
+  // in bici le due scale si mostrano sempre tutte e due, anche quando una e'
+  // vuota: dire che l'itinerario non porta la sigla CAI e' un'informazione
+  const colSalita = mtbView && rows.some(x => x.up);
+  const colGrezzo = mtbView ? 'mtb:scale' : 'sac_scale';
+  // una colonna sola per la difficolta': il valore com'e' scritto nei dati e,
+  // fra parentesi, il tag da cui viene. Il colore sta sempre qui, cosi' la
+  // riga si lega alla mappa scendendo lungo una colonna sola.
+  $('segments').innerHTML = `<thead><tr><th>km</th><th>Lungh.</th>` +
+    `<th title="Il valore come sta nei dati OSM e il tag da cui viene">Difficoltà</th>` +
+    `${colSalita ? '<th title="Sigla CAI per la salita, da cai_scale:mtb:uphill">salita</th>' : ''}` +
+    `<th title="L'altro dato: c'è, ma non è quello mostrato">altra fonte</th>` +
     `<th>Tipo</th><th>Fondo</th><th>Pend.</th><th>Segnavia</th>${fb ? '<th>Profilo</th>' : ''}</tr></thead><tbody>` +
     rows.map((x, i) => {
       const s = x.seg, other = s.profile && s.profile !== r.profile;
       return `<tr data-i="${i}" class="${other ? 'fb' : ''}${state.highlight?.from === x.from ? ' sel' : ''}">` +
         `<td>${(x.startM / 1000).toFixed(2)}</td><td>${Math.round(x.lenM)} m</td>` +
-        `<td><span class="tag" style="background:${segColor(s, 'difficolta')}"></span>${diffLabel(s)}</td>` +
-        `<td><span class="tag" style="background:${segColor(s, 'origine')}"></span>${originLabel(s)}</td>` +
-        `<td>${x.sac ?? '—'}</td><td>${ROAD_IT[s.roadClass] ?? s.roadClass ?? '—'}</td>` +
+        `<td>${cellaDifficolta(s, x)}</td>` +
+        `${colSalita ? `<td>${x.up ?? '—'}</td>` : ''}` +
+        `<td>${altraFonte(s, x)}</td>` +
+        `<td>${ROAD_IT[s.roadClass] ?? s.roadClass ?? '—'}</td>` +
         `<td>${x.surface ? (SURFACE_IT[x.surface] ?? x.surface) : '—'}</td>` +
         `<td>${x.lenM ? Math.round(x.slopeSum / x.lenM) : 0}%</td>` +
-        `<td>${s.ref ?? (s.network && s.network !== 'missing' ? 'sì' : '—')}${x.ford ? ', guado' : ''}${x.dismount ? ', bici a mano' : ''}</td>` +
+        `<td>${segnavia(s)}${x.ford ? ', guado' : ''}${x.dismount ? ', bici a mano' : ''}</td>` +
         `${fb ? `<td>${s.profile ?? ''}</td>` : ''}</tr>`;
     }).join('') + '</tbody>';
   $('segments').querySelectorAll('tbody tr').forEach(tr => tr.addEventListener('click', () => {
@@ -647,9 +773,14 @@ const ROAD_IT = {path: 'sentiero', track: 'forestale', footway: 'percorso pedona
   secondary: 'strada secondaria', primary: 'strada principale', service: 'strada di servizio', cycleway: 'ciclabile',
   bridleway: 'ippovia', pedestrian: 'zona pedonale', living_street: 'zona residenziale'};
 const DIFF_TEXT = {T: 'T (turistico)', E: 'E (escursionistico)', EE: 'EE (escursionisti esperti)',
-  EEA: 'EEA (con attrezzatura)', 'via ferrata': 'via ferrata', ghiacciaio: 'ghiacciaio'};
+  EEA: 'EEA (con attrezzatura)', 'via ferrata': 'via ferrata', ghiacciaio: 'ghiacciaio',
+  TC: 'TC (turistico)', MC: 'MC (media capacit\u00e0 tecnica)', BC: 'BC (buone capacit\u00e0 tecniche)',
+  OC: 'OC (ottime capacit\u00e0 tecniche)', EC: 'EC (massimo livello)',
+  S0: 'S0 (mtb:scale)', S1: 'S1 (mtb:scale)', S2: 'S2 (mtb:scale)', S3: 'S3 (mtb:scale)',
+  S4: 'S4 (mtb:scale)', S5: 'S5 (mtb:scale)', S6: 'S6 (mtb:scale)'};
 const ORIGIN_TEXT = {cai: 'dalla scala CAI della relazione', sac: 'da sac_scale della via', none: 'nessun dato',
-  glacier: 'dentro un ghiacciaio', via_ferrata: 'via ferrata'};
+  glacier: 'dentro un ghiacciaio', via_ferrata: 'via ferrata',
+  cai_mtb: 'dalla scala CAI MTB dell\'itinerario', mtb_scale: 'da mtb:scale della via'};
 
 const featureAt = (pixel, tol) =>
   map.forEachFeatureAtPixel(pixel, f => (f.get('seg') || f.get('info') ? f : undefined), {hitTolerance: tol});
@@ -708,7 +839,10 @@ function tipHtml(f) {
   return seg
     ? `<b>Motore nuovo</b>Difficoltà: ${DIFF_TEXT[seg.difficulty] ?? (road ? 'nessuna (strada o forestale)' : 'sconosciuta')}` +
       `${seg.difficulty ? ` (${ORIGIN_TEXT[seg.origin] ?? seg.origin})` : ''}${seg.longChain ? ', tratto sconosciuto lungo' : ''}<br>` +
-      (seg.sac ? `sac_scale originale: ${seg.sac}<br>` : '') +
+      (isMtb(seg)
+        ? (seg.mtbScale ? `mtb:scale originale: ${seg.mtbScale}<br>` : '') +
+          (seg.caiMtbUp ? `In salita: ${seg.caiMtbUp} (cai_scale:mtb:uphill)<br>` : '')
+        : (seg.sac ? `sac_scale originale: ${seg.sac}<br>` : '')) +
       `Segnato: ${seg.network && seg.network !== 'missing' ? 'sì, ' + (NETWORK_IT[seg.network] ?? seg.network) : 'no'}` +
       `${seg.ref ? ` · segnavia ${seg.ref.replaceAll(';', ', ')}` : ''}<br>` +
       `Tipo: ${ROAD_IT[seg.roadClass] ?? seg.roadClass ?? 'n.d.'} · fondo: ` +

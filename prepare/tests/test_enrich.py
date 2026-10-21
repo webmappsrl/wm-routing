@@ -113,3 +113,29 @@ def test_poi_table(result):
     assert fonte["wikipedia"] is None and fonte["wikidata"] is None
     names = set(pois)
     assert names == {"Monte Prova", "Fonte di Prova"}   # n92 senza nome resta fuori
+
+
+def test_relazioni_mtb_separate_da_quelle_a_piedi(result):
+    _, rows, _ = result
+    r = rows[2]
+    assert r["refs"] == "00"           # l'elenco a piedi non cambia
+    assert r["refs_mtb"] == "MTB1;MTB2"
+
+
+def test_piu_itinerari_mtb_sullo_stesso_tratto_vince_il_piu_difficile(result):
+    _, rows, _ = result
+    assert rows[2]["cai_mtb"] == "BC"  # BC (3) batte MC+ (2)
+    assert rows[2]["cai_mtb_up"] == "BC"
+
+
+def test_colonne_mtb_nella_tabella(result):
+    _, rows, _ = result
+    assert rows[4]["mtb_scale"] == "2"
+    assert rows[4]["mtb_rating"] == 2 and rows[4]["mtb_origin"] == "mtb_scale"
+    assert rows[2]["mtb_rating"] == 3 and rows[2]["mtb_origin"] == "cai_mtb"
+
+
+def test_difficolta_a_piedi_invariata(result):
+    _, rows, _ = result
+    assert rows[2]["origin"] == "cai" and rows[2]["cai"] == "T"
+    assert rows[4]["mtb_rating"] == 2 and rows[4]["origin"] == "none"
