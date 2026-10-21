@@ -134,7 +134,7 @@ export function makeRouteCore({config, engine, waysDb, dataStamp, retry = {}, mo
     const connectors = (snappedPts ?? [])
       .map((s, i) => ({punto: i, from: points[i], to: [s[0], s[1]], distanceM: Math.round(haversineM(points[i], s))}))
       .filter(c => c.from && c.distanceM >= 1);
-    const summary = summarizeDetails(p, waysDb);
+    const summary = summarizeDetails(p, waysDb, mode);
     const segments = summary.segments.map(seg => ({...seg, profile: publicProfile}));
     const {unknownShare} = summary;
     const maxEle = Math.max(...p.points.coordinates.map(c => c[2] ?? 0));

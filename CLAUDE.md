@@ -18,7 +18,7 @@ identificatori nel codice in inglese.
 | Cosa | Comando |
 |---|---|
 | test del gateway | `cd gateway && npm test` |
-| test del pre-passo | `docker run --rm -v "$PWD/engine/tests":/fixtures:ro wm-routing-prepare pytest -q` |
+| test del pre-passo | `docker run --rm -v "$PWD/prepare":/prepare -v "$PWD/engine/tests":/fixtures:ro wm-routing-prepare pytest -q` |
 | motore sulla rete sintetica | `bash engine/tests/smoke.sh` |
 | nessuna coordinata nei log | `bash tools/log-check.sh` |
 | preview | `cd gateway && node scripts/preview-check.mjs` |
@@ -41,6 +41,12 @@ identificatori nel codice in inglese.
   fallisce se non coincide.
 - **wm-routing legge i dati di wm-tiles, non il contrario**: nessun passo negli
   script della pipeline di wm-tiles.
+- **Le sigle CAI si riportano, non si deducono.** Una sigla della scala CAI
+  (`T`, `E`, `EE`, `EEA` a piedi; `TC`, `MC`, `BC`, `OC`, `EC` in bici) si
+  scrive solo se quel valore sta nei dati: mai ricavata da un'altra scala
+  (`sac_scale`, `mtb:scale`) ne' dalla sede stradale. Dove il dato manca, la
+  difficolta' e' sconosciuta e si dice. Il perche' e' nella pagina di conoscenza
+  del routing escursionistico.
 - **`horse_rating` non si espone e nessun profilo a cavallo puo' usarlo**: e' il
   contenitore delle catene di sentieri sconosciuti (pagina di conoscenza).
 - Le direttive per l'app sono in
