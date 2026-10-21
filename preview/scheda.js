@@ -56,7 +56,7 @@ const testo = h => typeof h === 'string' && h.replace(/<[^>]*>/g, '').trim() ? h
 // Una riga breve in ogni parte dell'assistente (regge se il foglio si separa); la frase che
 // spiega cosa garantiamo noi compare una volta sola, nella prima parte della pagina.
 const AVVISO_BREVE = 'Scritto dall’assistente dell’utente, non da Webmapp: rileggilo prima di partire.';
-const AVVISO_GARANZIA = 'Distanze, dislivelli, tempi e percorso, e tutto cio’ che non e’ marcato come scritto dall’assistente, sono calcolati da Webmapp sui dati del giro.';
+const AVVISO_GARANZIA = 'Distanze, dislivelli, tempi e percorso, e tutto cio’ che non e’ marcato come scritto dall’assistente, sono calcolati da Webmapp sui dati dell’escursione.';
 const avviso = primo => AVVISO_BREVE + (primo ? ' ' + AVVISO_GARANZIA : '');
 function riquadro(titolo, html, conAvviso = true, primo = false) {
   return `<section class="racconto"><p class="etichetta"><strong>${esc(titolo)}</strong>` +
@@ -253,18 +253,18 @@ function render(d) {
   }
   $('scheda').innerHTML = `
     <header>
-      <h1>Scheda del giro</h1>
+      <h1>Scheda dell'escursione</h1>
       <p class="sotto">${esc(NOMI_PROFILO[d.profilo] ?? d.profilo)} · dati del ${dataIt(d.stamp)}</p>
       <button type="button" id="stampa" class="no-print">Stampa o salva in PDF</button>
     </header>
-    ${cambiati ? '<p class="avviso">I dati sono cambiati da quando questo giro è stato progettato: ricontrolla tempi e difficoltà.</p>' : ''}
+    ${cambiati ? '<p class="avviso">I dati sono cambiati da quando questa escursione è stata progettata: ricontrolla tempi e difficoltà.</p>' : ''}
     ${r.introduzione ? riquadro('Presentazione dell’assistente', r.introduzione, true, true) : ''}
     <section class="giro">
       <h2>Il percorso</h2>
-      <div id="mappa" role="img" aria-label="Mappa del giro"></div>
-      <p class="didascalia">Partenza: cerchio piccolo verde. Arrivo: cerchio grande rosso${d.poi.length ? '. I luoghi lungo il giro hanno il nome scritto accanto' : ''}.</p>
+      <div id="mappa" role="img" aria-label="Mappa dell'escursione"></div>
+      <p class="didascalia">Partenza: cerchio piccolo verde. Arrivo: cerchio grande rosso${d.poi.length ? '. I luoghi lungo l’escursione hanno il nome scritto accanto' : ''}.</p>
       <h2>Profilo altimetrico</h2>
-      <canvas id="profilo" role="img" aria-label="Profilo altimetrico del giro"></canvas>
+      <canvas id="profilo" role="img" aria-label="Profilo altimetrico dell'escursione"></canvas>
       <p class="didascalia">Quota in metri, distanza dalla partenza in chilometri.</p>
     </section>
     <section>
@@ -278,8 +278,8 @@ function render(d) {
       </tbody></table>
     </section>
     ${tappe ? `<section><h2>Tappe</h2><table><thead><tr><th>Punto</th><th>Km dalla partenza</th><th>Tempo</th></tr></thead><tbody>${tappe}</tbody></table></section>` : ''}
-    ${sentieri ? `<section><h2>Sentieri</h2><table id="sentieri"><thead><tr><th>Numero</th><th>Difficoltà</th><th>Lunghezza</th></tr></thead><tbody>${sentieri}</tbody></table></section>` : ''}
-    ${poi ? `<section><h2>Luoghi lungo il giro</h2>${haLuoghi ? `<p class="avviso-racconto">${esc(avviso(!r.introduzione))}</p>` : ''}${poi}</section>` : ''}
+    ${sentieri ? `<section><h2>Percorsi CAI</h2><table id="sentieri"><thead><tr><th>Numero</th><th>Difficoltà</th><th>Lunghezza</th></tr></thead><tbody>${sentieri}</tbody></table></section>` : ''}
+    ${poi ? `<section><h2>Luoghi lungo l'escursione</h2>${haLuoghi ? `<p class="avviso-racconto">${esc(avviso(!r.introduzione))}</p>` : ''}${poi}</section>` : ''}
     ${r.consigli ? riquadro('Consigli dell’assistente', r.consigli, true, !r.introduzione && !haLuoghi) : ''}
     ${gpxHtml(d.linkGpx)}
     <section class="fonti-sezione">
@@ -314,7 +314,7 @@ function render(d) {
   window.addEventListener('beforeprint', () => { profilo(); window.__schedaMappa?.updateSize(); });
   window.addEventListener('afterprint', () => { profilo(); window.__schedaMappa?.updateSize(); });
   window.addEventListener('resize', profilo);
-  document.title = `Scheda del giro, ${fmt(d.distanzaKm, 1)} km`;
+  document.title = `Scheda dell'escursione, ${fmt(d.distanzaKm, 1)} km`;
 }
 
 function marcatore(lonLat, colore, nome, raggio = 7) {

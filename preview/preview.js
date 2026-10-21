@@ -56,7 +56,7 @@ const LINES = [
   {label: 'Alternativa del motore nuovo (profilo accanto)', color: '#8e44ad', dash: true},
   {label: 'Rientro sulla traccia', color: '#00c853', width: 4},
   {label: 'Ritorno al punto già raggiunto', color: '#00b8d4', width: 4},
-  {label: 'Punto del giro (numerato)', color: '#111', dot: true},
+  {label: "Punto dell'escursione (numerato)", color: '#111', dot: true},
   {label: 'Posizione simulata della persona', color: '#00c853', dot: true},
   {label: 'Raccordo in linea d\'aria: dal punto cliccato alla via dove parte il percorso', color: '#555', dash: true},
   {label: 'Area coperta dai dati', color: '#e53935', dash: true},
@@ -199,7 +199,7 @@ function drawMini() {
     : err ? `<span class="err">${err.split('\n')[0]}</span>`
     : state.flash ? `<b>${state.flash}</b>`
     : state.loading ? 'Calcolo del percorso…'
-    : state.points.length < 2 ? `Tocca la mappa per aggiungere i punti del giro: ${state.points.length ? 'ne manca uno' : 'ne servono almeno due'}.`
+    : state.points.length < 2 ? `Tocca la mappa per aggiungere i punti dell'escursione: ${state.points.length ? 'ne manca uno' : 'ne servono almeno due'}.`
     : [nuovo && line('Nuovo', nuovo), produzione && line('Produzione', produzione)].filter(Boolean).join('<br>');
   // il testo cambia di altezza: il pannello chiuso deve seguirlo
   if (document.body.dataset.sheet === 'low') sheetHeight(SHEET.low());
@@ -681,7 +681,7 @@ map.on('pointermove', e => {
       const sub = [poi.kind, poi.ele ? `${poi.ele} m` : null].filter(Boolean).join(' · ');
       tip.innerHTML = `<div class="tip-body"><b>${esc(poi.name)}</b>` +
         (sub ? `<div class="sub">${esc(sub)}</div>` : '') +
-        `<div class="wiki-slot"></div><div class="hint">Clicca per usarlo come tappa del giro</div></div>`;
+        `<div class="wiki-slot"></div><div class="hint">Clicca per usarlo come tappa dell'escursione</div></div>`;
       fetchPlaceWiki(poi.coord, poi.name).then(w => {
         if (!w || tip.dataset.poi !== key) return;
         const slot = tip.querySelector('.wiki-slot');
@@ -834,13 +834,13 @@ function updateCaiRoutes() {
     if (token !== caiToken) return;                 // nel frattempo e' cambiato il giro
     state.caiRoutes = list.filter(Boolean);
     if (!state.caiRoutes.length) { el.innerHTML = ''; return; }
-    el.innerHTML = `<div class="card"><h3>Sentieri CAI del giro</h3>
+    el.innerHTML = `<div class="card"><h3>Percorsi CAI dell'escursione</h3>
       <p class="help">Dal catasto dei sentieri (osmfeatures): tocca un segnavia per la scheda.</p><ul>` +
       state.caiRoutes.map((x, i) => {
         const st = CAI_STATO[x.p.osm2cai_status] ?? CAI_STATO[0];
         return `<li><button class="chip" data-i="${i}">${esc(x.p.ref ?? '—')}</button>` +
           `${esc([x.p.from, x.p.to].filter(Boolean).join(' → ') || x.p.name || '')}` +
-          ` <small>· ${(x.m / 1000).toFixed(1)} km nel giro · <span class="stato" style="background:${st[1]}"></span>${st[0]}</small>` +
+          ` <small>· ${(x.m / 1000).toFixed(1)} km nell'escursione · <span class="stato" style="background:${st[1]}"></span>${st[0]}</small>` +
           `<div class="cai-detail" data-d="${i}" hidden></div></li>`;
       }).join('') + '</ul></div>';
     el.querySelectorAll('.chip').forEach(b => b.addEventListener('click', () => openCaiDetail(Number(b.dataset.i))));
@@ -983,14 +983,14 @@ function updateAlongRoute() {
   drawAlong();
   const el = $('along');
   if (!state.alongRoute.length) { el.innerHTML = ''; return; }
-  el.innerHTML = `<div class="card"><h3>Lungo il giro</h3>
+  el.innerHTML = `<div class="card"><h3>Lungo l'escursione</h3>
     <p class="help">Acqua e ripari entro 150 m dal tracciato, fra i punti caricati alla scala attuale;
-    sulla mappa sono i pallini col raccordo tratteggiato. Il giro non cambia da solo:
+    sulla mappa sono i pallini col raccordo tratteggiato. L'escursione non cambia da sola:
     "tappa" lo ricalcola per passarci.</p>
     <ul class="legend">` + state.alongRoute.map((x, i) =>
       `<li data-i="${i}" style="cursor:pointer">▸ km ${(x.atM / 1000).toFixed(1)} — ${x.name ? `${x.name} · ` : ''}${x.kind}` +
       `${x.distM > 25 ? ` <small>(a ${x.distM} m)</small>` : ''}` +
-      ` <button data-add="${i}" title="Il giro viene ricalcolato per passarci: si puo' togliere con Togli l'ultimo">tappa</button></li>`).join('') + '</ul></div>';
+      ` <button data-add="${i}" title="L'escursione viene ricalcolata per passarci: si puo' togliere con Togli l'ultimo">tappa</button></li>`).join('') + '</ul></div>';
   el.querySelectorAll('li').forEach(li => li.addEventListener('click', () => {
     const x = state.alongRoute[Number(li.dataset.i)];
     if (mobile.matches && document.body.dataset.sheet === 'high') setSheet('mid');
@@ -1223,7 +1223,7 @@ $('reverse').addEventListener('click', () => {
 });
 $('outback').addEventListener('click', () => {
   if (state.points.length < 2) return;
-  if (state.points.at(-1).join() === state.points[0].join()) return flash('Il giro è già chiuso.');
+  if (state.points.at(-1).join() === state.points[0].join()) return flash("L'escursione è già chiusa.");
   for (let i = state.points.length - 2; i >= 0; i--) {
     state.points.push(state.points[i]);
     state.poi.push(state.poi[i]);
@@ -1292,7 +1292,7 @@ async function loadMeta() {
   // da allora, il percorso puo' essere cambiato — avviso fisso, non flash
   if (q.get('d') && stamp.osm && q.get('d') !== stamp.osm) {
     const b = document.createElement('div');
-    b.textContent = 'I dati sono cambiati da quando questo giro è stato progettato: ricontrolla tempi e difficoltà.';
+    b.textContent = 'I dati sono cambiati da quando questa escursione è stata progettata: ricontrolla tempi e difficoltà.';
     b.style.cssText = 'background:#fff3cd;color:#664d03;border:1px solid #ffecb5;' +
       'border-radius:6px;padding:8px 10px;margin:6px 0;font-weight:600';
     $('stamp').after(b);

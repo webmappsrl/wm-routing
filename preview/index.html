@@ -197,7 +197,7 @@
 
     <section data-tab="punti">
       <h2><span class="n">1</span>Punti</h2>
-      <p class="help">Clicca (o tocca) la mappa per aggiungere i punti del giro, in ordine: servono almeno due punti.
+      <p class="help">Clicca (o tocca) la mappa per aggiungere i punti dell'escursione, in ordine: servono almeno due punti.
         Clicca su un'icona (cima, rifugio, sorgente, valico…) per usarla come tappa con le sue coordinate esatte e il
         suo nome; a zoom basso alcune icone sono nascoste perché si sovrappongono.
         Un punto lontano dai sentieri viene agganciato al più vicino e segnalato. Il riquadro rosso è l'area
@@ -205,7 +205,7 @@
       <ul id="points"></ul>
       <div class="row"><button id="undo">Togli l'ultimo</button><button id="clear">Cancella tutti</button></div>
       <div class="row" style="margin-top:6px">
-        <button id="reverse" title="Inverte l'ordine dei punti: utile per confrontare salita e discesa">Inverti il giro</button>
+        <button id="reverse" title="Inverte l'ordine dei punti: utile per confrontare salita e discesa">Inverti l'escursione</button>
         <button id="outback" title="Aggiunge il ritorno per la stessa via">Andata e ritorno</button>
       </div>
     </section>
@@ -287,13 +287,13 @@
       <button id="rejoinMode">Attiva la simulazione</button>
       <div class="row">
         <label>Verso <select id="direction">
-          <option value="forward">avanti: proseguire il giro</option>
+          <option value="forward">avanti: proseguire l'escursione</option>
           <option value="backward">indietro: verso la partenza</option>
           <option value="nearest">il più vicino</option>
         </select></label>
         <label>Metri già percorsi <input id="progress" type="number" min="0" value="0"></label>
       </div>
-      <p class="help">I metri già percorsi dicono a che punto del giro è arrivata la persona: sulle andate e
+      <p class="help">I metri già percorsi dicono a che punto dell'escursione è arrivata la persona: sulle andate e
         ritorno lo stesso posto corrisponde a due punti diversi della traccia.</p>
       <div id="rejoin-result" class="help"></div>
     </section>
