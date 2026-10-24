@@ -23,13 +23,15 @@ $DOMINIO {
 	# ed Express serve anche lo slash finale, che altrimenti aggirerebbe la regola.
 	@interne path /v1/*/poi /v1/*/poi/
 	respond @interne 404
-	# /mcp e' il transport streamable HTTP del connettore MCP: la risposta SSE resta
-	# aperta anche per minuti e non va bufferizzata (infra/mcp.md), da qui
-	# flush_interval -1 e read_timeout 0. Il blocco sta prima del reverse_proxy
-	# generico per chiarezza e per non dipendere da come l'adapter ordina le route.
+	# /mcp e' il transport streamable HTTP del connettore MCP. Oggi risponde con un
+	# JSON solo (enableJsonResponse in gateway/src/mcp/http.js), quindi flush_interval
+	# e read_timeout non hanno effetto: restano perche' non costano nulla e servirebbero
+	# subito se si togliesse quel flag per avere streaming vero (infra/mcp.md).
+	# Il blocco sta prima del reverse_proxy generico per chiarezza e per non dipendere
+	# da come l'adapter ordina le route.
 	@mcp path /mcp
 	reverse_proxy @mcp 127.0.0.1:8991 {
-		flush_interval -1          # niente buffering: gli eventi SSE passano subito
+		flush_interval -1          # niente buffering, se un giorno la risposta sara' SSE
 		transport http {
 			read_timeout 0         # la risposta puo' restare aperta a lungo
 		}

@@ -24,10 +24,20 @@ restano validi: dipendono da `WM_LINK_KEY`, non dal token.
 
 ## Caddy: transport streamable HTTP
 
-Il transport MCP tiene la risposta aperta (SSE) anche per minuti, quindi sul
-path `/mcp` servono due attenzioni: nessun buffering (`flush_interval -1`) e
-nessun timeout di lettura (`read_timeout 0`). Senza, le risposte del connettore
-arrivano bufferizzate e troncate.
+Sul path `/mcp` il blocco Caddy ha due attenzioni, `flush_interval -1` e
+`read_timeout 0`, ma **oggi non servono**, e vale la pena sapere perche': il
+transport e' creato con `enableJsonResponse: true` (`gateway/src/mcp/http.js`),
+quindi risponde con **un JSON solo**, non con uno stream SSE.
+
+Misurato in produzione su `tools/list`: attraverso Caddy il primo byte arriva a
+136 ms e il totale a 136 ms; dal gateway diretto, 12 ms e 12 ms. Primo byte e
+totale che coincidono sono la prova che la risposta esce in un colpo solo, e la
+differenza fra i due percorsi e' TLS piu' il giro di rete, non buffering.
+
+Le due direttive restano perche' non costano nulla e servirebbero subito se un
+giorno si togliesse `enableJsonResponse` per avere streaming vero: in quel caso
+la risposta resterebbe aperta a lungo e senza di esse arriverebbe bufferizzata e
+troncata. Toglierle vorrebbe dire doversene ricordare allora.
 
 **Non si configura a mano.** Il blocco `/mcp` sta in
 [`infra/pubblica-routing.sh`](pubblica-routing.sh), che riscrive
