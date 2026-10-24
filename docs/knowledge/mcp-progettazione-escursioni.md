@@ -22,6 +22,9 @@
     un racconto troppo lungo sono un errore esplicito (`testo_troppo_lungo`),
     non un taglio; le fonti non valide o oltre il tetto di 30 si scartano
     senza avviso.
+- **Secondo consumatore dei POI**: oltre all'MCP, i POI li legge Walkiria (backend sulla
+  stessa macchina) dalla rotta interna `GET /v1/:shard/poi`, non pubblicata da Caddy.
+  La ricerca e' una sola, in `src/mcp/poi.js`: tool MCP e rotta la condividono.
 - **Metodo a fasi nelle istruzioni del server**: vincoli → stagione e meteo →
   varianti → arricchimento → **gate di conferma** → export. I passi si saltano
   quando l'informazione c'è già, il gate no. L'**export è in due passi**,

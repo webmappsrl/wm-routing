@@ -343,9 +343,10 @@ lanciano a mano lato server, copertura a macchie.
   rientro ha risposto in 39 s sulla cella di Pisa in locale; sul giro di 9 km in
   pochi secondi. Da misurare quale passo pesa (map matching della traccia o i
   tre candidati) prima di usarlo nell'app.
-- **Log del gateway**: il campo `route` esce `/v1/:shard/v1/preview/route`
-  invece di `/v1/:shard/route` (`req.path` dentro `app.use` porta il percorso
-  intero). Solo estetico: nessuna coordinata.
+- ~~**Log del gateway**: il campo `route` esce `/v1/:shard/v1/preview/route`
+  invece di `/v1/:shard/route`~~ — risolto in poi-via-rest: `req.path` si cattura
+  dentro il middleware, prima della listener su `finish`, dove Express ha gia'
+  ripristinato `req.url`.
 - **Rimandati dalla revisione finale** (minori): il map matching fallito usa la
   traccia grezza senza dirlo; la mappa dei secchi del limite di richieste non
   si svuota mai; i limiti di prova non stanno nell'URL della preview;

@@ -25,6 +25,9 @@ export function createApp({config, dataStamp, area, handlers = {}}) {
 
   app.use('/v1/:shard', (req, res, next) => {
     const t0 = Date.now();
+    // il percorso dopo /v1/<shard>, catturato qui: dentro res.on('finish') Express
+    // ha gia' ripristinato req.url e req.path porterebbe il percorso intero
+    const p = req.path;
     const shard = config.shards[req.params.shard];
     if (!shard) return res.status(404).json({stato: 'shard_sconosciuto'});
     const cors = corsHeaders(shard, req.get('Origin'));
@@ -33,7 +36,7 @@ export function createApp({config, dataStamp, area, handlers = {}}) {
     if (!limiters[req.params.shard].take(`${req.params.shard}|${req.ip}`))
       return res.status(429).json({stato: 'troppe_richieste'});
     res.on('finish', () => logEvent({
-      route: `/v1/:shard${req.path}`, status: res.statusCode, ms: Date.now() - t0,
+      route: `/v1/:shard${p}`, status: res.statusCode, ms: Date.now() - t0,
       shard: req.params.shard, profile: typeof req.body?.profile === 'string' ? req.body.profile : undefined,
     }));
     req.shard = shard;
@@ -48,5 +51,6 @@ export function createApp({config, dataStamp, area, handlers = {}}) {
 
   if (handlers.route) app.post('/v1/:shard/route', handlers.route);
   if (handlers.rejoin) app.post('/v1/:shard/rejoin', handlers.rejoin);
+  if (handlers.poi) app.get('/v1/:shard/poi', handlers.poi);
   return app;
 }

@@ -21,4 +21,11 @@ describe('configurazione', () => {
       expect(p.sha256, `aggiorna sha256 e version di ${name}`).toBe(h.digest('hex'));
     }
   });
+  it("lo shard walkiria accetta 25 punti e non e' chiamato da un browser", () => {
+    const s = loadConfig(CONF).shards.walkiria;
+    expect(s.maxPoints).toBe(25);
+    expect(s.origins).toEqual([]);
+    expect(Object.keys(s.profiles).sort())
+      .toEqual(['alpinista', 'escursionista', 'esperto', 'libero', 'mtb', 'prudente']);
+  });
 });
