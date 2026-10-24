@@ -24,23 +24,29 @@ restano validi: dipendono da `WM_LINK_KEY`, non dal token.
 
 ## Caddy: transport streamable HTTP
 
-Il transport MCP tiene la risposta aperta (SSE) anche per minuti. Nel blocco
-del sito (`/etc/caddy/siti/routing.caddy`) servono due attenzioni sul path
-`/mcp`:
+Il transport MCP tiene la risposta aperta (SSE) anche per minuti, quindi sul
+path `/mcp` servono due attenzioni: nessun buffering (`flush_interval -1`) e
+nessun timeout di lettura (`read_timeout 0`). Senza, le risposte del connettore
+arrivano bufferizzate e troncate.
 
-```caddy
-@mcp path /mcp
-reverse_proxy @mcp 127.0.0.1:8991 {
-    flush_interval -1          # niente buffering: gli eventi SSE passano subito
-    transport http {
-        read_timeout 0         # la risposta puo' restare aperta a lungo
-    }
-}
-```
+**Non si configura a mano.** Il blocco `/mcp` sta in
+[`infra/pubblica-routing.sh`](pubblica-routing.sh), che riscrive
+`/etc/caddy/siti/routing.caddy` da zero ed è la sola fonte di quel file: una
+modifica fatta sul server sparirebbe al rilancio successivo dello script, e il
+connettore si romperebbe senza che nessuno capisca perché. Per cambiare qualcosa
+in quel blocco si cambia lo script e lo si rilancia (`docs/runbook.md`,
+«Rilascio»).
 
-Il resto del sito non cambia. Regola invariata: Caddy non logga query string
-(il blob di `/g/` e il token di `/mcp` ci viaggiano dentro) —
-`tools/log-check.sh` lo verifica anche per le rotte nuove.
+Regola invariata: Caddy non logga query string (il blob di `/g/`, il token di
+`/mcp` e le coordinate di `/v1/*/poi` ci viaggiano dentro). Di Caddy, però, non
+c'è un controllo automatico: `tools/log-check.sh` legge
+`docker compose logs engine gateway`, cioè i log del gateway e del motore, e
+verifica che lì non finiscano coordinate, blob, token, osmId né note. La
+copertura dipende da dove gira: `/v1/*/route`, `/v1/*/rejoin` e `/v1/*/poi` le
+interroga sempre; `/g/`, `/g/scheda*` e `/mcp` solo se lo si lancia dalla
+cartella del repo sul server, dove c'è un `.env` con `WM_LINK_KEY` e
+`WM_MCP_TOKEN` — altrimenti quelle sonde si saltano, e il messaggio finale dello
+script elenca solo ciò che ha davvero interrogato.
 
 ## Claude: collegare il connector
 

@@ -33,7 +33,10 @@ identificatori nel codice in inglese.
 - **Nessuna coordinata nei log.** Le posizioni mandate per il rientro sono dati
   personali: gateway, Caddy e GraphHopper non registrano corpo, query string o
   punti. Un log nuovo del gateway passa da `gateway/src/log.js`.
-  `tools/log-check.sh` lo verifica.
+  `tools/log-check.sh` verifica i log di gateway e motore (di Caddy non legge
+  niente): `/v1/*` sempre, `/g/*` e `/mcp` solo con un `.env` che porti
+  `WM_LINK_KEY` e `WM_MCP_TOKEN`. Il messaggio finale dice cosa ha interrogato
+  davvero e cosa ha saltato.
 - **Sul Mac solo l'area di prova** (cella di Pisa); l'area intera si costruisce
   sul server `ssh wm-tiles`. Sulla cella i profili girano senza LM.
 - **I profili cambiano versione quando cambia il loro custom model**:
@@ -58,7 +61,7 @@ identificatori nel codice in inglese.
 | Argomento | Cosa copre | Pagina |
 |---|---|---|
 | Routing escursionistico | come il servizio ricava difficolta', quote e profili dai dati di wm-tiles, e cosa e' stato scartato | [docs/knowledge/routing-escursionistico.md](docs/knowledge/routing-escursionistico.md) |
-| Progettazione escursioni via MCP | come l'AI dell'utente progetta giri sui dati di wm-routing: tool, link firmati, GPX dal server e POI dal pre-passo | [docs/knowledge/mcp-progettazione-escursioni.md](docs/knowledge/mcp-progettazione-escursioni.md) |
+| Progettazione escursioni via MCP | come l'AI dell'utente progetta giri sui dati di wm-routing: tool, link firmati, GPX dal server e POI dal pre-passo; i POI hanno un secondo consumatore (Walkiria, rotta interna `/v1/:shard/poi`) con ricerca unica in `src/mcp/poi.js` | [docs/knowledge/mcp-progettazione-escursioni.md](docs/knowledge/mcp-progettazione-escursioni.md) |
 
 ## Trappole
 

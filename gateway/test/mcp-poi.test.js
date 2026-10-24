@@ -3,7 +3,7 @@ import {mkdtempSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import Database from 'better-sqlite3';
-import {makePoiNearbyTool, makeResolvePoi} from '../src/mcp/poi.js';
+import {makePoiNearbyTool, makeResolvePoi, searchPoiNearby} from '../src/mcp/poi.js';
 
 const dir = mkdtempSync(join(tmpdir(), 'wm-poi-'));
 
@@ -58,6 +58,15 @@ it('file del tutto assente: stessa risposta dichiarata', () => {
 it('coordinate non valide: stato chiaro', () => {
   const tool = makePoiNearbyTool({waysDbPath: fixtureDb([vicino])});
   expect(tool({point: ['x', 43]}).stato).toBe('coordinate_non_valide');
+});
+
+// Fissa la doppia validazione di makePoiNearbyTool: la stessa prova sta anche in
+// searchPoiNearby, ma li' arriverebbe troppo tardi. Senza quella nel tool, con il file
+// assente vincerebbe l'apertura fallita e a chi ha sbagliato le coordinate diremmo di
+// rigenerare il grafo.
+it('coordinate non valide e file assente: vince lo stato delle coordinate', () => {
+  const r = makePoiNearbyTool({waysDbPath: join(dir, 'non-esiste-2.sqlite')})({point: ['x', 43]});
+  expect(r).toEqual({stato: 'coordinate_non_valide'});
 });
 
 // --- risoluzione per osmId: nome, posizione e quota solo dal database ---
@@ -129,4 +138,55 @@ it('resolvePoi: quota NULL resta null, non diventa 0', () => {
   const senzaQuota = [1304081118, "Scarpa d'Orlando", 'peak', null, 10.3, 43.7, null, null];
   const r = makeResolvePoi({waysDbPath: fixtureDb([senzaQuota])})([1304081118]);
   expect(r.trovati[0].ele).toBeNull();
+});
+
+it('cerca su una connessione gia\' aperta, senza riaprirla', () => {
+  const db = new Database(fixtureDb([vicino, senzaWiki, lontano]), {readonly: true});
+  const r = searchPoiNearby(db, {point: CENTRO, radiusM: 500});
+  expect(r.poi.map(p => p.name)).toEqual(['Monte Prova', 'Fonte di Prova']);
+  db.close();
+});
+
+it('tiene i venti piu\' vicini, in ordine di distanza, anche se inseriti alla rovescia', () => {
+  // osm_id decrescente al crescere della distanza: senza sort() uscirebbe l'ordine inverso
+  const molti = Array.from({length: 25}, (_, i) =>
+    [100 + (24 - i), `Cima ${i}`, 'peak', 900, 10.5 + i * 0.0001, 43.75, null, null]);
+  const db = new Database(fixtureDb(molti), {readonly: true});
+  const r = searchPoiNearby(db, {point: CENTRO, radiusM: 2000});
+  const nomi = r.poi.map(p => p.name);
+  expect(nomi).toHaveLength(20);
+  expect(nomi[0]).toBe('Cima 0');
+  expect(nomi[19]).toBe('Cima 19');
+  for (let i = 20; i < 25; i++) expect(nomi).not.toContain(`Cima ${i}`);
+  const d = r.poi.map(p => p.distanzaM);
+  expect(d).toEqual([...d].sort((x, y) => x - y));
+  db.close();
+});
+
+it('raggio fuori intervallo: riportato dentro (1..2000 m), non rifiutato', () => {
+  const medio = [10, 'Cima Media', 'peak', 1000, 10.5187, 43.75, null, null];      // ~1500 m
+  const oltre = [11, 'Cima Oltre', 'peak', 1000, 10.5373, 43.75, null, null];      // ~3000 m
+  const db = new Database(fixtureDb([vicino, medio, oltre]), {readonly: true});
+  // sotto il minimo: diventa 1 m, il vicino (~140 m) non entra
+  expect(searchPoiNearby(db, {point: CENTRO, radiusM: -5}))
+    .toMatchObject({poi: [], vuoto: expect.stringContaining('entro 1 m')});
+  // sopra il massimo: diventa 2000 m, entra il medio ma non quello a ~3000 m
+  const alto = searchPoiNearby(db, {point: CENTRO, radiusM: 99999});
+  expect(alto.poi.map(p => p.name)).toEqual(['Monte Prova', 'Cima Media']);
+  db.close();
+});
+
+it('raggio 0 o NaN: torna al default di 500 m', () => {
+  const db = new Database(fixtureDb([lontano]), {readonly: true});
+  for (const radiusM of [0, NaN])
+    expect(searchPoiNearby(db, {point: CENTRO, radiusM}).vuoto).toContain('entro 500 m');
+  db.close();
+});
+
+it('tabella poi assente: non e\' un errore, e\' una risposta dichiarata', () => {
+  const path = join(dir, `vuoto-${Math.random().toString(36).slice(2)}.sqlite`);
+  new Database(path).close();
+  const db = new Database(path, {readonly: true});
+  expect(searchPoiNearby(db, {point: CENTRO})).toMatchObject({poi: [], vuoto: expect.any(String)});
+  db.close();
 });
