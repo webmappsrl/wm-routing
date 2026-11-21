@@ -24,6 +24,14 @@ n91 v1 x10.008 y44.002 Tamenity=drinking_water,name=Fonte%20%di%20%Prova
 n92 v1 x10.012 y44.005 Tnatural=peak,ele=500
 n93 v1 x10.004 y44.007 Tplace=city,name=Citta%20%di%20%Prova
 n94 v1 x10.007 y44.008 Tplace=town,name=Paese%20%di%20%Prova
+n40 v1 x10.020 y44.020
+n41 v1 x10.030 y44.020
+n42 v1 x10.030 y44.030
+n43 v1 x10.020 y44.030
+n50 v1 x10.040 y44.040
+n51 v1 x10.060 y44.040
+n52 v1 x10.060 y44.060
+n53 v1 x10.040 y44.060
 w1 v1 Thighway=path Nn1,n2
 w2 v1 Thighway=path Nn1,n3
 w3 v1 Thighway=path Nn3,n2
@@ -40,9 +48,14 @@ w15 v1 Thighway=path Nn15,n16
 w16 v1 Thighway=path,sac_scale=mountain_hiking,trail_visibility=bad Nn2,n10
 w17 v1 Thighway=via_ferrata Nn2,n17
 w18 v1 Thighway=path,sac_scale=hiking Nn17,n99
+w40 v1 T Nn40,n41,n42,n43,n40
+w50 v1 T Nn50,n51,n52,n53,n50
 r1 v1 Ttype=route,route=hiking,network=lwn,cai_scale=EE,ref=139 Mw1@
 r2 v1 Ttype=route,route=hiking,network=lwn,cai_scale=T,ref=00 Mw2@,w3@,w5@
 r3 v1 Ttype=route,route=hiking,network=lwn,ref=00 Mw2@
 r4 v1 Ttype=route,route=hiking,network=lwn Mw2@
 r5 v1 Ttype=route,route=mtb,cai_scale:mtb=MC+,cai_scale:mtb:uphill=BC,ref=MTB1 Mw2@,w5@
 r6 v1 Ttype=route,route=mtb,cai_scale:mtb=BC,ref=MTB2 Mw2@
+r40 v1 Ttype=multipolygon,place=region,name=Massiccio%20%di%20%Prova Mw40@outer
+r41 v1 Ttype=boundary,boundary=administrative,admin_level=4,name=Regione%20%di%20%Prova Mw50@outer
+r42 v1 Ttype=multipolygon,place=region,name=Zona%20%Incompleta Mw999@outer

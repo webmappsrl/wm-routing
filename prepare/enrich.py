@@ -44,6 +44,9 @@ POI_KINDS = {("natural", "peak"): "peak", ("natural", "saddle"): "saddle",
              ("tourism", "viewpoint"): "viewpoint"}
 POI_PLACES = {"city", "town", "village", "hamlet", "locality"}
 
+# Livello amministrativo delle regioni italiane in OSM.
+REGION_ADMIN_LEVEL = "4"
+
 
 class Pois(osmium.SimpleHandler):
     def __init__(self, db):
@@ -216,6 +219,64 @@ class Areas(osmium.SimpleHandler):
             pass  # poligono rotto in OSM: si salta
 
 
+def area_kind(tags):
+    """Zone e regioni: massicci, catene, valli e parchi sono place=region;
+    le regioni amministrative sono boundary=administrative di livello 4."""
+    if tags.get("boundary") == "administrative" and tags.get("admin_level") == REGION_ADMIN_LEVEL:
+        return "region"
+    if tags.get("place") == "region":
+        return "zone"
+    return None
+
+
+class NamedAreas(osmium.SimpleHandler):
+    """Passata 1c: zone e regioni con il loro bbox, su un estratto con solo
+    quelle. Come per i ghiacciai, montare i poligoni sul file intero non sta
+    in memoria.
+
+    Zone e regioni in OSM sono quasi sempre relation, raramente way chiuse:
+    `seen` le conta tutte com'erano nel file, `built` quelle che si sono
+    assemblate davvero. La differenza e' il dato mancante, e si dichiara."""
+
+    def __init__(self):
+        super().__init__()
+        self.rows = []
+        self.seen, self.built = Counter(), Counter()
+        self.factory = osmium.geom.WKBFactory()
+
+    def candidate(self, tags):
+        """kind di un oggetto che vale la pena montare: senza nome si salta,
+        come per i POI."""
+        kind = area_kind(tags)
+        return kind if kind and tags.get("name") else None
+
+    def way(self, w):
+        if w.is_closed():
+            kind = self.candidate({t.k: t.v for t in w.tags})
+            if kind:
+                self.seen[kind] += 1
+
+    def relation(self, r):
+        kind = self.candidate({t.k: t.v for t in r.tags})
+        if kind:
+            self.seen[kind] += 1
+
+    def area(self, a):
+        tags = {t.k: t.v for t in a.tags}
+        kind = self.candidate(tags)
+        if not kind:
+            return
+        try:
+            geom = wkb.loads(self.factory.create_multipolygon(a), hex=True)
+        except RuntimeError:
+            return  # poligono rotto in OSM: si salta
+        min_lon, min_lat, max_lon, max_lat = geom.bounds
+        osm_type = "way" if a.from_way() else "relation"
+        self.rows.append((osm_type, a.orig_id(), tags["name"], kind,
+                          min_lon, min_lat, max_lon, max_lat))
+        self.built[kind] += 1
+
+
 def tile_z13(lon, lat):
     n = 1 << 13
     x = int((lon + 180) / 360 * n)
@@ -385,6 +446,20 @@ def enrich(src, dst, db_path, tiles_path=None):
                        stdout=subprocess.DEVNULL)
         areas.apply_file(only_areas, locations=True)
 
+        # Zone e regioni: estratto a parte, perche' il filtro qui sopra e' gia'
+        # scritto per ghiacciai e zone militari e non va allargato senza bisogno.
+        # Niente fail-soft: senza aree il pre-passo si ferma, invece di lasciare
+        # un dato monco.
+        only_named = os.path.join(tmp, "zone-e-regioni.osm.pbf")
+        subprocess.run(["osmium", "tags-filter", "--overwrite", "-o", only_named, src,
+                        "a/place=region", "a/boundary=administrative"], check=True,
+                       stdout=subprocess.DEVNULL)
+        named_areas = NamedAreas()
+        # l'indice delle posizioni segue WM_NODE_INDEX come la passata 2: il
+        # filtro prende tutti i livelli amministrativi, comuni compresi, e con
+        # loro i nodi referenziati; sul nazionale in memoria non ci starebbero
+        named_areas.apply_file(only_named, locations=True, idx=NODE_INDEX)
+
     db = sqlite3.connect(db_path)
     db.execute("drop table if exists ways")
     db.execute("create table ways (way_id integer primary key, cai text, sac text, horse text,"
@@ -392,6 +467,12 @@ def enrich(src, dst, db_path, tiles_path=None):
                " refs text, rel_ids text,"
                " cai_mtb text, cai_mtb_up text, mtb_scale text, mtb_rating integer, mtb_origin text,"
                " refs_mtb text, rel_ids_mtb text)")
+    db.execute("drop table if exists area")
+    db.execute("create table area (osm_type text, osm_id integer, name text, kind text,"
+               " min_lon real, min_lat real, max_lon real, max_lat real,"
+               " primary key (osm_type, osm_id))")
+    db.executemany("insert or replace into area values (?,?,?,?,?,?,?,?)", named_areas.rows)
+
     classify = Classify(areas, db)
     classify.apply_file(src, locations=True, idx=NODE_INDEX)
     long_chains = classify.mark_long_chains()
@@ -413,7 +494,8 @@ def enrich(src, dst, db_path, tiles_path=None):
             "military_areas": len(areas.military), "long_chains": long_chains,
             "horse_scale_originali": classify.horse, "tiles_z13": len(classify.tiles),
             "cai_unknown_values": dict(areas.unknown_cai),
-            "cai_mtb_unknown_values": dict(areas.unknown_cai_mtb), "pois": pois}
+            "cai_mtb_unknown_values": dict(areas.unknown_cai_mtb), "pois": pois,
+            "areas_seen": dict(named_areas.seen), "areas_built": dict(named_areas.built)}
 
 
 if __name__ == "__main__":
