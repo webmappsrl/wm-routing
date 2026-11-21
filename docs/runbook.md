@@ -38,8 +38,9 @@ e la tabella `area`: regioni amministrative (livello 4) e zone (`place=region`),
 ognuna col proprio rettangolo. `area` si riscrive da zero a ogni arricchimento.
 Un grafo costruito prima di questa modifica non ha la tabella: `/areas` risponde
 `200` con `vuoto: "dati senza aree: grafo da rigenerare"`, non un errore. Si
-rigenera con `build-graph.sh` a mano, e con `WM_REBUILD_SAME_DATA=1` (vedi sotto),
-perche' `check-data.sh` ricostruisce solo se la data del PBF o delle quote e' cambiata. Prima dello scambio il controllo
+rigenera con `build-graph.sh` a mano e, se il dato OSM non e' cambiato, con
+`WM_REBUILD_SAME_DATA=1` (vedi sotto), perche' `check-data.sh` ricostruisce solo se
+la data del PBF o delle quote e' cambiata. Prima dello scambio il controllo
 guarda anche il riassunto del pre-passo (`prepare.json`): se `ways` o `pois` sono a
 zero, o calano oltre il 5% rispetto al grafo in uso, esce con **3**. Le aree sono
 un caso a parte: si pretendono solo se il pre-passo ne ha viste nel file
@@ -70,11 +71,17 @@ di sempre, e la pulizia finale tiene il grafo nuovo e quello che era in uso. Sen
 rimanda a questo modo. `check-data.sh` (cron) non lo usa mai: ricostruisce solo se il
 dato cambia.
 
+Una sola build per volta: `build-graph.sh` prende un lock su
+`/var/lib/wm-routing/grafi/.build.lock` e, se e' gia' preso (per esempio dal cron di
+notte), esce con **75** senza toccare niente, come per gli altri rinvii. Si rilancia a
+build finita.
+
 Codici d'uscita: **2** dati mancanti o incoerenti (PBF senza data, rettangoli
 che non tornano, tile senza quote), **3** controllo fallito (percorsi di prova
 falliti, quote a zero, nodi calati oltre il 5%, riassunto del pre-passo monco o
 assente), **75** rinviato (rigenerazione
-di wm-tiles in corso o memoria libera insufficiente). In tutti e tre i casi il
+di wm-tiles in corso, un'altra build del grafo in corso o memoria libera
+insufficiente). In tutti e tre i casi il
 grafo in uso resta quello di prima.
 
 ## Rilascio
