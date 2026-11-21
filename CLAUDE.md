@@ -37,6 +37,34 @@ identificatori nel codice in inglese.
   niente): `/v1/*` sempre, `/g/*` e `/mcp` solo con un `.env` che porti
   `WM_LINK_KEY` e `WM_MCP_TOKEN`. Il messaggio finale dice cosa ha interrogato
   davvero e cosa ha saltato.
+- **`WM_V1_TOKEN` e' spento di proposito**: il meccanismo c'e' nel codice, ma
+  nessun valore ne' in locale ne' in produzione, e il gateway e' fail-open (senza
+  la variabile avvisa all'avvio e parte lo stesso). E' una decisione, non una
+  svista: accenderlo vuole prima una scelta sulla preview pubblica (runbook, «La
+  credenziale delle rotte dei dati»).
+- **Node 18, non 22.** `npm test` e gli script locali del gateway girano col Node
+  di serie del Mac (18), per cui `better-sqlite3` e' compilato (`NODE_MODULE_VERSION`
+  108): non esportare il PATH del Node 22, che qui lo rompe. Il container del
+  gateway ha un Node suo (`gateway/Dockerfile`). In Walkiria vale la regola
+  opposta (Node 22 obbligatorio).
+- **Dopo una modifica a `prepare/` si ricostruisce l'immagine**:
+  `docker build -t wm-routing-prepare prepare/` prima di `build-graph.sh`.
+  `build-graph.sh` monta solo `/in` e `/out`, quindi gira con l'`enrich.py` che sta
+  dentro l'immagine; i pytest (comando in tabella) montano `prepare/` e provano il
+  sorgente. Con l'immagine vecchia i test sono verdi sul codice nuovo e la build
+  gira sul vecchio, senza un errore: lo si vede solo dal riassunto (`prepare.json`
+  senza le chiavi nuove, `pois` identico a prima).
+- **Con il tunnel `ssh -L 8991` aperto (quello che Walkiria fa aprire per i POI) le
+  verifiche locali parlano con la produzione.** La porta 8991 e' quella su cui
+  `tools/log-check.sh` bussa per default e su cui il compose pubblica il gateway
+  locale. Ci si accorge con `lsof -nP -iTCP:8991 -sTCP:LISTEN` (un `ssh`, non
+  docker) o con `GET /v1/version`, che risponde col grafo nazionale. Per lavorarci
+  intorno: un file di override fuori dal repo con
+  `ports: !override ["127.0.0.1:18991:8991"]` per il servizio `gateway`, passato
+  con `COMPOSE_FILE=docker-compose.yml:<override>` (e un `COMPOSE_PROJECT_NAME`
+  proprio), e l'URL dato a `bash tools/log-check.sh http://127.0.0.1:18991`. Le
+  stesse due variabili vanno anche a `log-check`, che legge i log con
+  `docker compose logs`. Il tunnel non si chiude.
 - **Sul Mac solo l'area di prova** (cella di Pisa); l'area intera si costruisce
   sul server `ssh wm-tiles`. Sulla cella i profili girano senza LM.
 - **I profili cambiano versione quando cambia il loro custom model**:

@@ -32,9 +32,27 @@ bash tools/log-check.sh
 quote, importa, avvia il grafo nuovo su una porta interna, lo controlla con i
 percorsi di prova e solo allora lo mette in uso e riavvia i servizi.
 
+L'arricchimento (`prepare/enrich.py`) produce in `ways.sqlite`, oltre alle vie, la
+tabella `poi` (con citta' e paesi: `city`, `town`, `village`, `hamlet`, `locality`)
+e la tabella `area`: regioni amministrative (livello 4) e zone (`place=region`),
+ognuna col proprio rettangolo. `area` si riscrive da zero a ogni arricchimento.
+Un grafo costruito prima di questa modifica non ha la tabella: `/areas` risponde
+`200` con `vuoto: "dati senza aree: grafo da rigenerare"`, non un errore. Si
+rigenera con `build-graph.sh` a mano, perche' `check-data.sh` ricostruisce solo
+se la data del PBF o delle quote e' cambiata. Prima dello scambio il controllo
+guarda anche il riassunto del pre-passo (`prepare.json`): se `ways` o `pois` sono a
+zero, o calano oltre il 5% rispetto al grafo in uso, esce con **3**. Le aree sono
+un caso a parte: si pretendono solo se il pre-passo ne ha viste nel file
+(`areas_seen`). Fermano lo scambio se sono a zero pur essendocene nel file, se
+calano oltre il 5% per tipo, o se il grafo in uso ne aveva e il nuovo non ne vede
+piu' nessuna. Su un estratto ritagliato come la cella di prova le relazioni
+perdono i membri fuori dal rettangolo, `areas_seen` resta vuoto e la tabella
+`area` esce vuota senza fermare niente.
+
 Codici d'uscita: **2** dati mancanti o incoerenti (PBF senza data, rettangoli
 che non tornano, tile senza quote), **3** controllo fallito (percorsi di prova
-falliti, quote a zero, nodi calati oltre il 5%), **75** rinviato (rigenerazione
+falliti, quote a zero, nodi calati oltre il 5%, riassunto del pre-passo monco o
+assente), **75** rinviato (rigenerazione
 di wm-tiles in corso o memoria libera insufficiente). In tutti e tre i casi il
 grafo in uso resta quello di prima.
 
@@ -73,6 +91,30 @@ pubblicata**: il file e' gia' scritto e Caddy gia' ricaricato, e lo script non
 ripristina niente. Per tornare indietro si rilancia lo script della release
 precedente. La verifica a mano, piu' larga, e' in
 «[La rotta dei POI resta interna](#la-rotta-dei-poi-resta-interna)».
+
+## Le rotte per rettangolo
+
+`GET /v1/:shard/places` e `GET /v1/:shard/areas` rispondono a «quali paesi e quali
+zone stanno qui», cosa che `poi` (un raggio attorno a un punto) non sa dire. Il
+rettangolo e' `bbox=ovest,sud,est,nord`, in gradi, ed e' in query string: non va in
+nessun log. Con la credenziale spenta gli esempi che seguono funzionano cosi' come
+sono, senza intestazione (stato e accensione: «La credenziale delle rotte dei dati»).
+Non sono fra i percorsi interni di `infra/pubblica-routing.sh`: da internet passano.
+
+```bash
+D=https://routing.maphub.it
+# paesi e citta' dentro il rettangolo (kinds facoltativo; limit 200 di default, tetto 2000)
+curl -s "$D/v1/walkiria/places?bbox=10.4,43.7,10.6,43.8&kinds=city,town&limit=50"
+# le regioni che intersecano il rettangolo (kind obbligatorio: region o zone; bbox facoltativo)
+curl -s "$D/v1/walkiria/areas?kind=region&bbox=10.4,43.7,10.6,43.8"
+```
+
+`places` risponde `{"places":[{"name","kind","lonLat":[lon,lat],"ele","osmId"}]}`,
+con `"troncato":true` se c'era altro oltre `limit`. `areas` risponde
+`{"areas":[{"name","kind","bbox":[w,s,e,n],"osmType","osmId"}]}`, senza taglio.
+Un risultato vuoto porta `vuoto` col motivo. Un `bbox` mal scritto da `400
+{"stato":"bbox_non_valido"}`, un `kind` diverso da `region` e `zone` su `/areas`
+da `400 {"stato":"kind_non_valido"}`.
 
 ## Aggiornamento notturno
 
@@ -246,7 +288,8 @@ vale anche su un gateway vecchio.
   (`server/src/itinerary/routing.ts`, che avvolge la `fetch` del client e mette
   `Authorization: Bearer <token>` quando il token c'e'); in
   `packages/api-client/src/` la `fetch` e' una sola, quindi ci passano tutte le
-  chiamate, `route`, `poi`, `rejoin`, `profiles` e `version`. Serve
+  chiamate, `route`, `poi`, `rejoin`, `profiles` e `version` (`places` e `areas` il client non le chiama
+ancora, ma la credenziale vale anche per loro). Serve
   `WM_ROUTING_TOKEN` nel suo `.env`, con lo stesso valore di `WM_V1_TOKEN` di
   qui; senza, il token resta nullo, l'intestazione non parte e Walkiria resta
   senza POI e senza percorsi. In locale, con il tunnel, va impostata anche
