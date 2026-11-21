@@ -448,8 +448,8 @@ def enrich(src, dst, db_path, tiles_path=None):
 
         # Zone e regioni: estratto a parte, perche' il filtro qui sopra e' gia'
         # scritto per ghiacciai e zone militari e non va allargato senza bisogno.
-        # Niente fail-soft: senza aree il pre-passo si ferma, invece di lasciare
-        # un dato monco.
+        # Niente fail-soft sugli errori: subprocess.run(check=True) e nessun try,
+        # quindi un errore ferma il pre-passo invece di lasciare un dato monco.
         only_named = os.path.join(tmp, "zone-e-regioni.osm.pbf")
         subprocess.run(["osmium", "tags-filter", "--overwrite", "-o", only_named, src,
                         "a/place=region", "a/boundary=administrative"], check=True,

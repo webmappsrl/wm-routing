@@ -54,37 +54,37 @@ it('la radice porta alla preview, come le tile', async () => {
 
 // --- la credenziale sulle rotte dei dati ---------------------------------
 const TOKEN = 'token-di-prova-12345';
-const conToken = (spia, v1Token = TOKEN) => createApp({config, v1Token,
-  dataStamp: () => ({osm: 'X'}), handlers: {route: spia}});
+const withToken = (spy, v1Token = TOKEN) => createApp({config, v1Token,
+  dataStamp: () => ({osm: 'X'}), handlers: {route: spy}});
 
 it('con il token configurato, una richiesta senza intestazione riceve 401 e non arriva all\'handler', async () => {
-  let chiamate = 0;
-  const spia = (_req, res) => { chiamate += 1; res.json({ok: true}); };
-  const r = await request(conToken(spia)).post('/v1/s/route').send({});
+  let calls = 0;
+  const spy = (_req, res) => { calls += 1; res.json({ok: true}); };
+  const r = await request(withToken(spy)).post('/v1/s/route').send({});
   expect(r.status).toBe(401);
   expect(r.body).toEqual({stato: 'non_autorizzato'});
-  expect(chiamate).toBe(0);
+  expect(calls).toBe(0);
 });
 it("con l'intestazione giusta la richiesta passa", async () => {
-  let chiamate = 0;
-  const spia = (_req, res) => { chiamate += 1; res.json({ok: true}); };
-  const r = await request(conToken(spia)).post('/v1/s/route')
+  let calls = 0;
+  const spy = (_req, res) => { calls += 1; res.json({ok: true}); };
+  const r = await request(withToken(spy)).post('/v1/s/route')
     .set('Authorization', `Bearer ${TOKEN}`).send({});
   expect(r.status).toBe(200);
-  expect(chiamate).toBe(1);
+  expect(calls).toBe(1);
 });
 it('un token sbagliato riceve 401, anche se e\' lungo uguale', async () => {
-  const spia = (_req, res) => res.json({ok: true});
-  const stessaLunghezza = 'x'.repeat(TOKEN.length);
-  expect((await request(conToken(spia)).post('/v1/s/route')
+  const spy = (_req, res) => res.json({ok: true});
+  const sameLength = 'x'.repeat(TOKEN.length);
+  expect((await request(withToken(spy)).post('/v1/s/route')
     .set('Authorization', 'Bearer sbagliato').send({})).status).toBe(401);
-  expect((await request(conToken(spia)).post('/v1/s/route')
-    .set('Authorization', `Bearer ${stessaLunghezza}`).send({})).status).toBe(401);
-  expect((await request(conToken(spia)).post('/v1/s/route')
+  expect((await request(withToken(spy)).post('/v1/s/route')
+    .set('Authorization', `Bearer ${sameLength}`).send({})).status).toBe(401);
+  expect((await request(withToken(spy)).post('/v1/s/route')
     .set('Authorization', TOKEN).send({})).status).toBe(401);
 });
 it('/v1/version resta aperta: e\' la prova di vita del rilascio', async () => {
-  const r = await request(conToken(() => {})).get('/v1/version');
+  const r = await request(withToken(() => {})).get('/v1/version');
   expect(r.status).toBe(200);
   expect(r.body.osm).toBe('X');
 });
@@ -96,7 +96,7 @@ it('senza token configurato le rotte restano aperte: e\' lo sviluppo sul Mac', a
 it('una richiesta non autorizzata non consuma il secchio di qualcun altro', async () => {
   // il secchio di prova ha capienza 1: se il controllo venisse dopo il limite,
   // le due richieste respinte lo svuoterebbero e la terza sarebbe 429
-  const a = conToken((_req, res) => res.json({ok: true}));
+  const a = withToken((_req, res) => res.json({ok: true}));
   expect((await request(a).post('/v1/s/route').send({})).status).toBe(401);
   expect((await request(a).post('/v1/s/route').set('Authorization', 'Bearer no').send({})).status).toBe(401);
   expect((await request(a).post('/v1/s/route')
@@ -107,9 +107,9 @@ it('il token non compare nei log', async () => {
   const orig = process.stdout.write;
   process.stdout.write = c => { scritti.push(String(c)); return true; };
   try {
-    const a = conToken((_req, res) => res.json({ok: true}));
+    const a = withToken((_req, res) => res.json({ok: true}));
     await request(a).post('/v1/s/route').set('Authorization', `Bearer ${TOKEN}`).send({});
-    await request(conToken((_req, res) => res.json({ok: true})))
+    await request(withToken((_req, res) => res.json({ok: true})))
       .post('/v1/s/route').set('Authorization', 'Bearer token-sbagliato-999').send({});
   } finally { process.stdout.write = orig; }
   const log = scritti.join('');

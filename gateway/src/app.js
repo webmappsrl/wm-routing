@@ -7,14 +7,14 @@ import {logEvent} from './log.js';
 // Confronto fra segreti: mai con ===, che si ferma al primo carattere diverso e
 // racconta quanti ne ha indovinati chi prova. timingSafeEqual vuole lunghezze
 // pari, quindi la differenza di lunghezza si tratta prima, a parte.
-function tokenGiusto(atteso, ricevuto) {
-  if (typeof ricevuto !== 'string') return false;
-  const a = Buffer.from(atteso), b = Buffer.from(ricevuto);
+function tokenMatches(expected, received) {
+  if (typeof received !== 'string') return false;
+  const a = Buffer.from(expected), b = Buffer.from(received);
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
 // 'Bearer <token>', con lo schema che non guarda le maiuscole
-function tokenDellIntestazione(authorization) {
+function bearerToken(authorization) {
   if (typeof authorization !== 'string') return undefined;
   const m = /^Bearer[ \t]+(.+)$/i.exec(authorization.trim());
   return m ? m[1].trim() : undefined;
@@ -52,7 +52,7 @@ export function createApp({config, dataStamp, area, v1Token, handlers = {}}) {
     if (req.method === 'OPTIONS') return res.status(204).end();
     // la credenziale prima del limite di richieste: una richiesta non
     // autorizzata non deve consumare il secchio di qualcun altro
-    if (v1Token && !tokenGiusto(v1Token, tokenDellIntestazione(req.get('Authorization')))) {
+    if (v1Token && !tokenMatches(v1Token, bearerToken(req.get('Authorization')))) {
       logEvent({route: `/v1/:shard${p}`, status: 401, ms: Date.now() - t0,
         shard: req.params.shard, stato: 'non_autorizzato'});
       return res.status(401).json({stato: 'non_autorizzato'});
