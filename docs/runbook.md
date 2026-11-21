@@ -124,13 +124,15 @@ si prova in piu' che DNS e certificato pubblico funzionano).
 
 ```bash
 D=https://routing.maphub.it
-# Oggi WM_V1_TOKEN non e' impostato e le rotte /v1 sono aperte: l'intestazione
-# qui sotto parte senza valore, il gateway non la guarda, e i comandi riescono
-# perche' credenziale non ce n'e', non perche' quella mandata sia quella giusta.
-# Non e' una prova sulla credenziale: e' una prova sul matcher di Caddy, e vale
-# comunque. Il giorno in cui il token si accende questi comandi funzionano senza
-# modifiche, basta avere WM_V1_TOKEN nell'ambiente. Vedi «La credenziale delle
-# rotte dei dati». GET /v1/version resta aperta in ogni caso.
+# ATTENZIONE: questo blocco non prova niente sulla credenziale. Se il gateway
+# non la chiede, l'intestazione qui sotto parte senza valore, il gateway non la
+# guarda, e i comandi riescono lo stesso: l'esito atteso arriva perche'
+# credenziale non ce n'e', non perche' quella mandata sia quella giusta. Qui si
+# prova il matcher di Caddy, e per quello il blocco vale. Se la credenziale sia
+# accesa o no si chiede al servizio, col curl della sezione «La credenziale
+# delle rotte dei dati»; i comandi qui sotto non cambiano in nessuno dei due
+# casi, basta avere WM_V1_TOKEN nell'ambiente. GET /v1/version resta comunque
+# aperta.
 A="Authorization: Bearer $WM_V1_TOKEN"
 # la rotta POI non deve esistere: atteso "404 0" (codice e byte scaricati).
 # Il 404 di Caddy non ha corpo; il 404 del gateway porta un JSON di una trentina
@@ -149,8 +151,9 @@ curl -s -o /dev/null -w 'version:     %{http_code} %{size_download}B\n' "$D/v1/v
 da Caddy: la rotta deve funzionare, altrimenti Walkiria non ha i POI.
 
 ```bash
-# anche qui l'intestazione oggi parte senza valore e non cambia l'esito: vedi
-# «La credenziale delle rotte dei dati»
+# anche qui l'intestazione non cambia l'esito finche' il gateway non chiede la
+# credenziale (vedi «La credenziale delle rotte dei dati»). Resta scritta: e' la
+# stessa chiamata da rilanciare col token vero il giorno in cui sara' accesa
 curl -s -o /dev/null -w 'poi interna: %{http_code} %{size_download}B\n' \
   -H "Authorization: Bearer $WM_V1_TOKEN" \
   'http://127.0.0.1:8991/v1/walkiria/poi?lon=10.5&lat=43.75'
@@ -170,16 +173,33 @@ Se le chiamate POI esterne non danno `404 0B`, la rotta non e' protetta: rilanci
 rilanciarlo subito. Se la chiamata interna non risponde `200`, il problema e' il
 gateway, non Caddy.
 
-## La credenziale delle rotte dei dati: oggi e' spenta
+## La credenziale delle rotte dei dati
 
-Il gateway sa chiedere una credenziale sulle rotte `/v1/<shard>/*`, ma **oggi non
-e' accesa**: `WM_V1_TOKEN` non ha un valore, ne' in locale ne' in produzione, e
-quelle rotte sono aperte a chiunque raggiunga il gateway: da internet tutto
-tranne `/v1/*/poi`, che ferma Caddy (vedi sopra); dalla macchina del server,
-tutto. Verificato il 2026-11-21: `POST https://routing.maphub.it/v1/walkiria/route`
-senza nessuna intestazione risponde `400` sul contenuto della richiesta, non `401`.
+Quello che segue e' lo stato al **2026-11-21**. Per lo stato di adesso non
+fidarti di questa pagina: chiedilo al servizio, col comando qui sotto. Chi
+accende la credenziale riscrive questa sezione **e** i commenti dei due blocchi
+di verifica della rotta POI, qui sopra.
 
-Con la variabile impostata, una richiesta a `/v1/<shard>/*` senza
+La prova, da fare sul server (`ssh wm-tiles`), e' una richiesta a una rotta dei
+dati **senza** intestazione. Non c'e' nessun segreto in gioco:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -X POST http://127.0.0.1:8991/v1/walkiria/route
+```
+
+`401` vuol dire credenziale accesa. Qualunque altro esito vuol dire rotte
+aperte: `400` e' il gateway che si lamenta del corpo della richiesta, cioe' ha
+servito una richiesta che nessuno ha autorizzato. Lo stesso comando vale dal
+dominio pubblico (`https://routing.maphub.it/v1/walkiria/route`), che e' come e'
+stato misurato lo stato scritto qui: `400`, non `401`.
+
+Al 2026-11-21, quindi, **le rotte `/v1/<shard>/*` sono aperte** a chiunque
+raggiunga il gateway: da internet tutto tranne `/v1/*/poi`, che ferma Caddy
+(vedi sopra); dalla macchina del server, tutto. Nello `.env` di sviluppo di
+questo repo `WM_V1_TOKEN` non c'e'; che cosa ci sia nello `.env` del server il
+`curl` non lo dice, e non serve saperlo: conta l'esito.
+
+Con la credenziale accesa, una richiesta a `/v1/<shard>/*` senza
 `Authorization: Bearer <token>` riceve `401 {"stato":"non_autorizzato"}`, e il
 controllo sta prima del limite di richieste, cosi' una richiesta respinta non
 consuma il secchio di qualcun altro. `GET /v1/version` non passa da quel
@@ -189,21 +209,16 @@ controllo e resta aperta in ogni caso: e' la prova di vita che
 Il meccanismo e' **fail-open per costruzione**: senza la variabile il gateway
 parte lo stesso e si limita ad avvisare (`gateway/src/server.js:37-38`, riga
 `ATTENZIONE: WM_V1_TOKEN assente, le rotte /v1 sono aperte a chiunque`). E'
-voluto, perche' sul Mac si lavora senza segreti, ed e' anche il modo piu' rapido
-per sapere come sta messo un gateway:
-
-```bash
-ssh wm-tiles 'cd /srv/wm-routing && docker compose logs gateway | grep -c "WM_V1_TOKEN assente"'
-```
-
-Una riga di avviso vuol dire rotte aperte; nessuna riga vuol dire credenziale
-accesa. Il valore del segreto non si stampa e non si incolla da nessuna parte:
-si guarda se c'e', non quanto vale.
+voluto, perche' sul Mac si lavora senza segreti. L'avviso nel log e' un indizio
+in piu', non una prova: **zero righe non vuol dire niente da solo**. Un gateway
+piu' vecchio del commit che ha introdotto il controllo non stampa quell'avviso e
+ha le rotte del tutto aperte; `grep -c` risponde `0` anche quando `docker
+compose logs` fallisce, perche' l'errore non passa nella pipe; e il gateway
+scrive una riga per richiesta, quindi con la rotazione dei log la riga d'avvio
+sparisce da sola. L'esito del `curl` qui sopra invece misura il comportamento, e
+vale anche su un gateway vecchio.
 
 ### Cosa va sistemato prima di accenderla
-
-Accenderla oggi romperebbe cose che funzionano. Prima di mettere `WM_V1_TOKEN`
-nello `.env` del server:
 
 - **La preview pubblica.** `preview/preview.js` (righe 325, 1213, 1416) chiama
   `/v1/<shard>/route`, `/v1/<shard>/rejoin` e `/v1/<shard>/profiles` **dal
@@ -212,10 +227,19 @@ nello `.env` del server:
   token. La scelta e' aperta e nessuno l'ha ancora fatta: lasciare lo shard
   `preview` senza credenziale, chiudere la preview pubblica, oppure metterla
   dietro qualcosa che inietti l'intestazione al posto della pagina.
-- **Il backend di Walkiria** (altro repo). Chiama `GET /v1/:shard/poi` e
-  `POST /v1/:shard/route` mandando solo `Content-Type: application/json`: con la
-  credenziale accesa prenderebbe `401` e Walkiria resterebbe senza POI e senza
-  percorsi. Va cambiato li', prima o insieme all'accensione.
+- **Il backend di Walkiria**: nessun codice da scrivere, ma una variabile da
+  impostare. Il suo client sa gia' mandare l'intestazione
+  (`server/src/itinerary/routing.ts`, che avvolge la `fetch` del client e mette
+  `Authorization: Bearer <token>` quando il token c'e'); in
+  `packages/api-client/src/` la `fetch` e' una sola, quindi ci passano tutte le
+  chiamate, `route`, `poi`, `rejoin`, `profiles` e `version`. Serve
+  `WM_ROUTING_TOKEN` nel suo `.env`, con lo stesso valore di `WM_V1_TOKEN` di
+  qui; senza, il token resta nullo, l'intestazione non parte e Walkiria resta
+  senza POI e senza percorsi. In locale, con il tunnel, va impostata anche
+  `WM_ROUTING_POI_URL`, che e' un'altra faccenda ma si incontra nello stesso
+  momento. Nota per l'altro repo: `.env.example:92` e `server/src/config.ts:52`
+  dicono ancora che il gateway non ha autenticazione: vero oggi, da aggiornare
+  li' il giorno dell'accensione.
 - **Il connettore MCP invece e' gia' a posto.** I suoi tool escono dal processo e
   rientrano da `POST /v1/mcp/route`: l'intestazione la mette
   `gateway/src/mcp/v1-auth.js`, purche' il processo abbia `WM_V1_TOKEN`
