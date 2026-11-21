@@ -187,9 +187,15 @@ dati **senza** intestazione. Non c'e' nessun segreto in gioco:
 curl -s -o /dev/null -w '%{http_code}\n' -X POST http://127.0.0.1:8991/v1/walkiria/route
 ```
 
-`401` vuol dire credenziale accesa. Qualunque altro esito vuol dire rotte
-aperte: `400` e' il gateway che si lamenta del corpo della richiesta, cioe' ha
-servito una richiesta che nessuno ha autorizzato. Lo stesso comando vale dal
+Come si legge l'esito, in tre casi distinti:
+
+| Esito | Cosa vuol dire |
+|---|---|
+| `401` | credenziale **accesa** |
+| una risposta del gateway diversa da `401` (`400`, `200`, `429`) | rotte **aperte**: il gateway ha servito una richiesta che nessuno ha autorizzato. `400` e' lui che si lamenta del corpo, `429` il limite di richieste |
+| `000`, `5xx`, `404` | **la prova non ha misurato niente**: il gateway non ha risposto (giu', in riavvio, porta sbagliata, oppure un 502/503 di Caddy), o la rotta chiesta non e' quella giusta. Rifare la prova, non concludere |
+
+Il terzo caso non dice «aperte»: dice che non si sa. Lo stesso comando vale dal
 dominio pubblico (`https://routing.maphub.it/v1/walkiria/route`), che e' come e'
 stato misurato lo stato scritto qui: `400`, non `401`.
 
@@ -212,10 +218,10 @@ parte lo stesso e si limita ad avvisare (`gateway/src/server.js:37-38`, riga
 voluto, perche' sul Mac si lavora senza segreti. L'avviso nel log e' un indizio
 in piu', non una prova: **zero righe non vuol dire niente da solo**. Un gateway
 piu' vecchio del commit che ha introdotto il controllo non stampa quell'avviso e
-ha le rotte del tutto aperte; `grep -c` risponde `0` anche quando `docker
-compose logs` fallisce, perche' l'errore non passa nella pipe; e il gateway
-scrive una riga per richiesta, quindi con la rotazione dei log la riga d'avvio
-sparisce da sola. L'esito del `curl` qui sopra invece misura il comportamento, e
+ha le rotte del tutto aperte; un `grep` sull'avviso nei log non trova niente
+anche quando a fallire e' il comando che i log li legge, perche' l'errore non
+passa nella pipe; e il gateway scrive una riga per richiesta, quindi con la
+rotazione dei log la riga d'avvio sparisce da sola. L'esito del `curl` qui sopra invece misura il comportamento, e
 vale anche su un gateway vecchio.
 
 ### Cosa va sistemato prima di accenderla
