@@ -2,11 +2,15 @@
 # Ritaglia e arricchisce il PBF, costruisce il grafo in una cartella nuova, lo
 # controlla e scambia il collegamento "corrente".
 # Uso: build-graph.sh <pbf> <terrain.pmtiles>
+# Con WM_REBUILD_SAME_DATA=1 ricostruisce anche se il dato OSM e' lo stesso di quello in uso
+# (serve dopo una modifica a prepare/: cambia il codice, non il dato). Il grafo nuovo va in una
+# cartella con un nome diverso, "<data>-r<ora della build>"; quello in uso non si tocca.
 set -euo pipefail
 abs() { [ -f "$1" ] && echo "$(cd "$(dirname "$1")" && pwd)/$(basename "$1")" || echo "$1"; }
 # percorsi assoluti: con "data/x" Docker leggerebbe "data" come nome di un volume
 PBF=$(abs "$1"); DEM=$(abs "$2")
 cd "$(dirname "$0")/.."
+# shellcheck source=/dev/null
 source tools/bbox.sh
 ROOT="${WM_GRAPHS:-/var/lib/wm-routing/grafi}"
 MIN_GB="${WM_MIN_FREE_GB:-12}"
@@ -23,12 +27,28 @@ if [ "$MIN_GB" -gt 0 ]; then
 fi
 
 TS=$(bash tools/data-stamp.sh "$PBF" "$DEM")
-DIR="$ROOT/$(echo "$TS" | tr -d ':')"
+STAMP_DIR=$(echo "$TS" | tr -d ':')
 CUR=$(readlink "$ROOT/corrente" 2>/dev/null || true)
-if [ "$DIR" = "$CUR" ]; then
-  echo "!! il grafo $TS e' gia' in uso: non lo si ricostruisce nella sua cartella" >&2; exit 2
+# la data del grafo in uso si legge dal nome della cartella, senza l'eventuale "-r<ora>" di una
+# ricostruzione: cosi' "stesso dato" vale anche dopo una ricostruzione, non solo alla prima
+CUR_STAMP=$(basename "${CUR:-/}"); CUR_STAMP=${CUR_STAMP%%-r*}
+if [ "$STAMP_DIR" = "$CUR_STAMP" ]; then
+  if [ "${WM_REBUILD_SAME_DATA:-0}" != 1 ]; then
+    echo "!! il grafo $TS e' gia' in uso: non lo si ricostruisce nella sua cartella." >&2
+    echo "   Se e' cambiato il codice del pre-passo (prepare/) e il dato e' lo stesso, si chiede" >&2
+    echo "   esplicitamente: WM_REBUILD_SAME_DATA=1 bash tools/build-graph.sh <pbf> <terrain.pmtiles>" >&2
+    echo "   (prima va ricostruita l'immagine: docker build -t wm-routing-prepare prepare/)" >&2
+    exit 2
+  fi
+  # stesso dato, codice diverso: cartella con un nome che non puo' essere quello in uso
+  STAMP_DIR="$STAMP_DIR-r$(date -u +%Y%m%dT%H%M%SZ)"
 fi
-rm -rf "$DIR"                   # resti di un tentativo precedente con la stessa data
+DIR="$ROOT/$STAMP_DIR"
+# rete di sicurezza: DIR e' sempre diversa dal grafo in uso, qualunque strada abbia portato qui
+if [ "$DIR" = "$CUR" ]; then
+  echo "!! la cartella del grafo nuovo coincide con quella in uso ($DIR): mi fermo" >&2; exit 2
+fi
+rm -rf "$DIR"                   # resti di un tentativo precedente con lo stesso nome
 SWAPPED=0
 # un tentativo non riuscito non deve restare su disco (sul nazionale: decine di GB)
 cleanup() {
@@ -38,6 +58,7 @@ cleanup() {
 trap cleanup EXIT
 mkdir -p "$DIR/quote-cache"     # deve esistere: in sola lettura il motore non puo' crearla
 # il tetto fa fallire il pre-passo prima che tolga memoria alle tile (Pisa: 280 MB)
+# shellcheck disable=SC2054  # le virgole sono dentro il valore di WM_NODE_INDEX, non separano elementi
 PREP=(docker run --rm --oom-score-adj 900 --memory "${WM_PREP_MEM:-12g}" -e WM_GRAPH_BBOX
       -e WM_NODE_INDEX=sparse_file_array,/out/nodi.idx
       -v "$(dirname "$PBF")":/in:ro -v "$DIR":/out wm-routing-prepare)
@@ -59,7 +80,7 @@ rm -f "$DIR/ritagliato.osm.pbf" "$DIR/arricchito.osm.pbf"
 docker run -d --name wm-engine-gate -p 127.0.0.1:18990:8989 -v "$DIR":/data:ro -v "$DIR":/graph:ro \
   -e JAVA_OPTS="${WM_ENGINE_JAVA:--Xmx8g}" \
   "$IMAGE" server "$CONFIG" >/dev/null
-for i in $(seq 180); do curl -fs localhost:18990/health >/dev/null && break; sleep 1; done
+for _ in $(seq 180); do curl -fs localhost:18990/health >/dev/null && break; sleep 1; done
 # "nodes: 1,234,567(12MB)" (BaseGraphNodesAndEdges.java:568, riga loaded graph di GraphHopperManaged)
 NODES=$(docker logs wm-engine-gate 2>&1 | sed -n 's/.*nodes: \([0-9,]*\)(.*/\1/p' | tr -d ',' | head -1)
 printf '{"osm":"%s","builtAt":"%s","pbf":"%s","nodes":%s}\n' \
