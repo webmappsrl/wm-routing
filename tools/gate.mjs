@@ -1,10 +1,14 @@
 // Controllo prima dello scambio: i percorsi di prova devono stare nel
 // rettangolo del grafo e riuscire sul grafo nuovo con quote vere, e i nodi non
-// devono calare di oltre il 5% rispetto al grafo in uso.
-// Uso: node tools/gate.mjs <url motore nuovo> <stamp nuovo> [stamp in uso]
+// devono calare di oltre il 5% rispetto al grafo in uso. Guarda anche il dato
+// del pre-passo (prepare.json), che puo' mancare mentre il grafo resta valido.
+// Uso: node tools/gate.mjs <url motore nuovo> <stamp nuovo> <stamp in uso> <prepare.json nuovo> <prepare.json in uso>
+// Gli argomenti sono posizionali e vanno passati tutti; i due "in uso" possono
+// essere percorsi di file che non esistono (primo build), e allora non si confronta.
 import {readFileSync, existsSync} from 'node:fs';
+import {compareData} from './gate-data.mjs';
 
-const [url, stampNew, stampOld] = process.argv.slice(2);
+const [url, stampNew, stampOld, prepNew, prepOld] = process.argv.slice(2);
 const [w, s, e, n] = (process.env.WM_GRAPH_BBOX ?? '').split(',').map(Number);
 if (![w, s, e, n].every(Number.isFinite)) { console.error('!! serve WM_GRAPH_BBOX (tools/bbox.sh)'); process.exit(3); }
 const inside = ([x, y]) => x >= w && x <= e && y >= s && y <= n;
@@ -28,4 +32,14 @@ if (fails.length || !nodesNew || drop > 0.05) {
   console.error(`!! scambio bloccato: ${fails.join(', ') || 'percorsi ok'}; nodi ${nodesNew} contro ${nodesOld}`);
   process.exit(3);
 }
+// il riassunto del pre-passo in uso puo' non esserci (primo build) o non leggersi: allora basta che il nuovo sia pieno
+if (!prepNew || !existsSync(prepNew)) { console.error('!! scambio bloccato: manca il riassunto del pre-passo del grafo nuovo'); process.exit(3); }
+let dataNew;
+try { dataNew = JSON.parse(readFileSync(prepNew, 'utf8')); }
+catch { console.error('!! scambio bloccato: il riassunto del pre-passo del grafo nuovo non si legge'); process.exit(3); }
+let dataOld;
+try { dataOld = prepOld && existsSync(prepOld) ? JSON.parse(readFileSync(prepOld, 'utf8')) : undefined; }
+catch { console.error('!! riassunto del pre-passo in uso illeggibile: lo si tratta come assente'); }
+const verdict = compareData(dataNew, dataOld);
+if (!verdict.ok) { console.error(`!! scambio bloccato: dato del pre-passo monco: ${verdict.reason}`); process.exit(3); }
 console.log(`controllo superato: ${routes.length} percorsi, nodi ${nodesNew}`);

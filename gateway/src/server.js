@@ -8,6 +8,7 @@ import {createEngine} from './engine.js';
 import {makeFallbackRoute, makeRouteCore, makeRouteHandler} from './route.js';
 import {makeRejoinHandler} from './rejoin/rejoin.js';
 import {makePoiHandler} from './poi-handler.js';
+import {makePlacesHandler, makeAreasHandler} from './bbox-handler.js';
 import {makeGRouter} from './mcp/g-route.js';
 import {makeResolvePoi} from './mcp/poi.js';
 import {makeMcpHttpHandler} from './mcp/http.js';
@@ -27,8 +28,18 @@ const rejoin = makeRejoinHandler({config, engine, compute: makeRouteCore(deps),
   matchLimits: {meanM: 30, maxM: 100}, bbox: BBOX});
 
 const poi = makePoiHandler({waysDb});
+const places = makePlacesHandler({waysDb});
+const areas = makeAreasHandler({waysDb});
 
-const app = createApp({config, dataStamp, area: BBOX, handlers: {route, rejoin, poi}});
+// la credenziale sulle rotte dei dati. Assente, le rotte restano aperte: sul Mac
+// si lavora senza segreti. Uno stato pericoloso pero' non resta silenzioso: in
+// produzione lo dice la prova di infra/pubblica-routing.sh (ferma il rilascio se il
+// token c'e' e il gateway non lo chiede; se manca lo avvisa soltanto)
+if (!process.env.WM_V1_TOKEN)
+  console.log('ATTENZIONE: WM_V1_TOKEN assente, le rotte /v1 sono aperte a chiunque');
+
+const app = createApp({config, dataStamp, area: BBOX, v1Token: process.env.WM_V1_TOKEN,
+  handlers: {route, rejoin, poi, places, areas}});
 app.use('/preview', express.static(process.env.WM_PREVIEW ?? new URL('../../preview', import.meta.url).pathname));
 // link firmati dei deliverable MCP: la rotta esiste solo se c'e' la chiave.
 // Lo stesso fallback per tratti di /v1: un giro consegnato in chat col
@@ -50,6 +61,7 @@ if (process.env.WM_MCP_ENABLED === '1' && process.env.WM_MCP_TOKEN && process.en
       publicUrl: publicUrlDi(process.env.WM_PUBLIC_URL, `http://127.0.0.1:${port}`),
       linkKey: process.env.WM_LINK_KEY,
       waysDbPath: process.env.WM_WAYS_DB ?? '/graph/ways.sqlite',
+      v1Token: process.env.WM_V1_TOKEN,
       log: logEvent,
     },
   }));

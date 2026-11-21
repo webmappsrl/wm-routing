@@ -14,6 +14,7 @@ import {readFileSync} from 'node:fs';
 import {decodeLink, LinkError} from './link.js';
 import {datiScheda, linkGpxDi} from './dati-scheda.js';
 import {makeResolvePoi} from './poi.js';
+import {intestazioneV1} from './v1-auth.js';
 import {renderMarkdown, MAX_MARKDOWN} from './markdown.js';
 
 // Tetto dei luoghi raccontati e delle fonti: oltre, il documento non e' piu'
@@ -111,7 +112,7 @@ const fontiValide = fonti => (Array.isArray(fonti) ? fonti : [])
 
 export function makeDocumentoTool({gatewayUrl, publicUrl = gatewayUrl, linkKey, fetchFn = fetch,
                                    waysDbPath = '', previewDir = PREVIEW_DIR,
-                                   resolvePoi = makeResolvePoi({waysDbPath})}) {
+                                   resolvePoi = makeResolvePoi({waysDbPath}), v1Token}) {
   return async function documentoTool({t, introduzione, luoghi = [], consigli, fonti = []}) {
     // 1) il blob: un link alterato vale come uno malformato
     let blob;
@@ -129,7 +130,7 @@ export function makeDocumentoTool({gatewayUrl, publicUrl = gatewayUrl, linkKey, 
     let route;
     try {
       const r = await fetchFn(`${gatewayUrl}/v1/mcp/route`, {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
+        method: 'POST', headers: {'Content-Type': 'application/json', ...intestazioneV1(v1Token)},
         body: JSON.stringify({profile: blob.profile, points: blob.points}),
       });
       const j = await r.json().catch(() => ({}));

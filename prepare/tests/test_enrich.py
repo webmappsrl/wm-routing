@@ -111,8 +111,12 @@ def test_poi_table(result):
     fonte = pois["Fonte di Prova"]                   # n91: fontana senza wiki
     assert fonte["kind"] == "drinking_water"
     assert fonte["wikipedia"] is None and fonte["wikidata"] is None
+    citta = pois["Citta di Prova"]                   # n93: place=city
+    assert citta["kind"] == "city"
+    paese = pois["Paese di Prova"]                   # n94: place=town
+    assert paese["kind"] == "town"
     names = set(pois)
-    assert names == {"Monte Prova", "Fonte di Prova"}   # n92 senza nome resta fuori
+    assert names == {"Monte Prova", "Fonte di Prova", "Citta di Prova", "Paese di Prova"}   # n92 senza nome resta fuori
 
 
 def test_relazioni_mtb_separate_da_quelle_a_piedi(result):
@@ -139,3 +143,42 @@ def test_difficolta_a_piedi_invariata(result):
     _, rows, _ = result
     assert rows[2]["origin"] == "cai" and rows[2]["cai"] == "T"
     assert rows[4]["mtb_rating"] == 2 and rows[4]["origin"] == "none"
+
+
+def aree(summary):
+    con = sqlite3.connect(summary["_db_path"])
+    con.row_factory = sqlite3.Row
+    return {r["name"]: dict(r) for r in con.execute("select * from area")}
+
+
+def test_area_table(result):
+    _, _, summary = result
+    zona = aree(summary)["Massiccio di Prova"]       # r40: place=region
+    assert zona["kind"] == "zone"
+    assert zona["min_lon"] < zona["max_lon"] and zona["min_lat"] < zona["max_lat"]
+    # il bbox contiene i nodi dell'anello (n40..n43)
+    assert zona["min_lon"] == pytest.approx(10.020) and zona["max_lon"] == pytest.approx(10.030)
+    assert zona["min_lat"] == pytest.approx(44.020) and zona["max_lat"] == pytest.approx(44.030)
+
+
+def test_area_regione_amministrativa(result):
+    _, _, summary = result
+    regione = aree(summary)["Regione di Prova"]      # r41: admin_level=4
+    assert regione["kind"] == "region"
+    assert regione["min_lon"] == pytest.approx(10.040) and regione["max_lat"] == pytest.approx(44.060)
+
+
+def test_area_osm_type_nella_chiave(result):
+    _, _, summary = result
+    righe = aree(summary)
+    assert righe["Massiccio di Prova"]["osm_type"] == "relation"
+    assert righe["Massiccio di Prova"]["osm_id"] == 40
+    assert righe["Regione di Prova"]["osm_type"] == "relation"
+
+
+def test_area_incompleta_dichiarata(result):
+    _, _, summary = result
+    # r42 cita un membro che nel file non c'e': vista, non assemblata
+    assert summary["areas_seen"]["zone"] - summary["areas_built"]["zone"] == 1
+    assert summary["areas_seen"]["region"] == summary["areas_built"]["region"] == 1
+    assert "Zona Incompleta" not in aree(summary)

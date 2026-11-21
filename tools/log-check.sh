@@ -10,16 +10,22 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 URL="${1:-http://127.0.0.1:8991}"
+# Le rotte /v1 vogliono la credenziale quando il gateway ha WM_V1_TOKEN: con la
+# variabile nell'ambiente ogni richiesta a /v1 la porta, senza restano aperte.
+v1curl() {
+  if [ -n "${WM_V1_TOKEN:-}" ]; then curl -H "Authorization: Bearer $WM_V1_TOKEN" "$@"
+  else curl "$@"; fi
+}
 # Area del grafo realmente caricato dal servizio: [W,S,E,N]. Se non si determina, non si
 # procede: un punto arbitrario non proverebbe niente sui log.
-AREA=$(curl -s "$URL/v1/version" | jq -r '.area | if type=="array" and length==4 then map(tostring) | join(",") else empty end' 2>/dev/null || true)
+AREA=$(v1curl -s "$URL/v1/version" | jq -r '.area | if type=="array" and length==4 then map(tostring) | join(",") else empty end' 2>/dev/null || true)
 [ -n "$AREA" ] || { echo "!! non riesco a determinare l'area del servizio ($URL/v1/version non risponde o non ha il campo area): controllo non valido" >&2; exit 1; }
 IFS=, read -r W S E N <<< "$AREA"
 # LC_ALL=C: con la locale italiana awk stampa la virgola decimale e le coordinate si rompono
 SEA_LON=$(LC_ALL=C awk -v w="$W" 'BEGIN{printf "%.7f", w + 0.0337777}')
 SEA_LAT=$(LC_ALL=C awk -v s="$S" 'BEGIN{printf "%.7f", s + 0.0337777}')
 OK=$(jq -c '.[0].points' compare/routes.json)
-post() { curl -s -o /dev/null -w '%{http_code}' "$URL/v1/preview/$1" -H 'Content-Type: application/json' -d "$2" || true; }
+post() { v1curl -s -o /dev/null -w '%{http_code}' "$URL/v1/preview/$1" -H 'Content-Type: application/json' -d "$2" || true; }
 code=$(post route "{\"profile\":\"escursionista\",\"points\":$OK}")
 [ "$code" = 200 ] || { echo "!! il percorso valido non riesce (HTTP $code): controllo non valido" >&2; exit 1; }
 code=$(post route "{\"profile\":\"escursionista\",\"points\":[[$SEA_LON,$SEA_LAT],$(jq -c '.[0].points[1]' compare/routes.json)]}")
@@ -34,7 +40,7 @@ case "$code" in 200|404) ;; *) echo "!! la rotta rejoin doveva rispondere 200 o 
 # rotta POI (GET, coordinate e raggio in query string): il raggio 7771 e' improbabile nei log.
 # Anche qui la risposta si asserisce: una richiesta fallita non proverebbe niente
 # sull'assenza delle coordinate dai log. Il punto in mare e' valido, quindi 200 con lista vuota.
-code=$(curl -s -o /dev/null -w '%{http_code}' "$URL/v1/preview/poi?lon=$SEA_LON&lat=$SEA_LAT&radiusM=7771" || true)
+code=$(v1curl -s -o /dev/null -w '%{http_code}' "$URL/v1/preview/poi?lon=$SEA_LON&lat=$SEA_LAT&radiusM=7771" || true)
 [ "$code" = 200 ] || { echo "!! la rotta POI non risponde (HTTP $code): controllo non valido" >&2; exit 1; }
 
 # Rotte nuove: /g/ e /g/gpx portano il blob firmato in query string, /mcp il
@@ -124,6 +130,9 @@ if [ -n "$BLOB_POI" ]; then
 fi
 if [ -n "$TOKEN" ] && echo "$LOGS" | grep -qF "$TOKEN"; then
   echo "!! il token della rotta /mcp e' finito nei log" >&2; exit 1
+fi
+if [ -n "${WM_V1_TOKEN:-}" ] && echo "$LOGS" | grep -qF "$WM_V1_TOKEN"; then
+  echo "!! la credenziale delle rotte /v1 e' finita nei log" >&2; exit 1
 fi
 echo "ok: nei log di gateway e motore nessuna coordinata, blob, token, osmId, nota o testo dell'assistente"
 echo "    rotte interrogate: $PROVATE"
