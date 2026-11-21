@@ -19,13 +19,13 @@ mkdir -p /etc/caddy/siti
 # il nome dello shard. Ogni percorso ha due forme, con e senza slash finale:
 # senza stella in coda Caddy confronta il percorso in modo esatto, ed Express serve
 # anche lo slash finale, che altrimenti aggirerebbe la regola.
-INTERNI="/v1/*/poi /v1/*/poi/"
+INTERNI="/v1/*/poi /v1/*/poi/ /v1/*/places /v1/*/places/ /v1/*/areas /v1/*/areas/"
 # heredoc senza apici: $DOMINIO si espande. Qualunque altro $ qui dentro va
 # scritto \$, altrimenti la shell lo mangia prima che il file sia scritto.
 cat > /etc/caddy/siti/routing.caddy <<EOF
 $DOMINIO {
 	encode gzip
-	# /v1/<shard>/poi serve al backend di Walkiria, che gira su questa macchina e
+	# /v1/<shard>/poi, /places e /areas servono al backend di Walkiria, che gira su questa macchina e
 	# raggiunge il gateway dalla rete interna (127.0.0.1:8991): da internet non
 	# deve esistere. 404 e non 403, perche' un 403 confermerebbe che la rotta c'e'.
 	# L'elenco e le due forme di ogni percorso sono in INTERNI, in cima allo script.

@@ -85,7 +85,8 @@ nessuno. Gateway per primo: la rotta esiste e non e' protetta, quindi per tutta
 la durata del riavvio e' raggiungibile da internet.
 
 Lo script si controlla da solo: dopo il reload chiede `/v1/version` e verifica
-che `/v1/walkiria/poi`, con e senza slash finale, risponda `404` da internet. Se
+che ognuno dei percorsi di `INTERNI` (`poi`, `places` e `areas`, con e senza slash
+finale) risponda `404` da internet. Se
 non e' cosi' esce con errore e il rilascio si ferma, ma la configurazione **resta
 pubblicata**: il file e' gia' scritto e Caddy gia' ricaricato, e lo script non
 ripristina niente. Per tornare indietro si rilancia lo script della release
@@ -99,10 +100,12 @@ zone stanno qui», cosa che `poi` (un raggio attorno a un punto) non sa dire. Il
 rettangolo e' `bbox=ovest,sud,est,nord`, in gradi, ed e' in query string: non va in
 nessun log. Con la credenziale spenta gli esempi che seguono funzionano cosi' come
 sono, senza intestazione (stato e accensione: «La credenziale delle rotte dei dati»).
-Non sono fra i percorsi interni di `infra/pubblica-routing.sh`: da internet passano.
+Come `poi`, sono percorsi interni di `infra/pubblica-routing.sh`: servono allo stesso
+backend di Walkiria, sulla stessa macchina, e da internet Caddy risponde `404`. Gli
+esempi si lanciano quindi dal server (`ssh wm-tiles`), direttamente sul gateway.
 
 ```bash
-D=https://routing.maphub.it
+D=http://127.0.0.1:8991
 # paesi e citta' dentro il rettangolo (kinds facoltativo; limit 200 di default, tetto 2000)
 curl -s "$D/v1/walkiria/places?bbox=10.4,43.7,10.6,43.8&kinds=city,town&limit=50"
 # le regioni che intersecano il rettangolo (kind obbligatorio: region o zone; bbox facoltativo)
@@ -146,22 +149,24 @@ Nella pipeline di wm-tiles non c'e' niente da annullare.
 
 ## La rotta dei POI resta interna
 
-`GET /v1/:shard/poi` serve il backend di Walkiria, che gira sulla stessa macchina e
+`GET /v1/:shard/poi`, `/places` e `/areas` servono il backend di Walkiria, che gira sulla stessa macchina e
 raggiunge il gateway dalla rete interna (`127.0.0.1:8991`). **Caddy non deve
 pubblicarla**, e non va fatto a mano: `infra/pubblica-routing.sh` genera
 `/etc/caddy/siti/routing.caddy` con la regola `@interne path $INTERNI` +
 `respond @interne 404` prima del `reverse_proxy`. `INTERNI` e' una variabile sola,
-in cima allo script (oggi `/v1/*/poi /v1/*/poi/`: anche con lo slash finale, che
-Express serve): la leggono sia la regola sia il ciclo che alla fine dello script
+in cima allo script (oggi `poi`, `places` e `areas`, ognuno anche con lo slash
+finale, che Express serve): la leggono sia la regola sia il ciclo che alla fine dello script
 prova il 404, quindi un percorso interno in piu' si aggiunge li' e in nessun altro
-punto. Una regola scritta a mano sul server
+punto. La prova non puo' pero' accorgersi di un percorso che manca dall'elenco: chi
+aggiunge al gateway una rotta destinata solo al backend deve metterla in `INTERNI`
+nello stesso cambiamento, altrimenti nasce pubblica e lo script dice ok. Una regola scritta a mano sul server
 verrebbe cancellata al rilancio dello script, quindi la protezione sta nello script.
 Lo stesso vale per tutto il resto di quel file, blocco `/mcp` compreso: lo script lo
 riscrive da zero ed e' la sua sola fonte (vedi «Rilascio» e `infra/mcp.md`).
 
 Verifica dopo ogni deploy o rilancio dello script: e' quella che dimostra che la
 protezione c'e' davvero. Vanno controllate **tutte e due le direzioni** nello stesso
-momento: che la regola blocchi la rotta POI, e che non blocchi nient'altro. Il secondo
+momento: che la regola blocchi le rotte interne, e che non blocchi nient'altro. Il secondo
 errore (un matcher che intercetta piu' del dovuto) non lo vedrebbe nessuno al deploy e si
 manifesterebbe come il servizio di routing che smette di rispondere a tutti: un guasto
 piu' grave di quello che la regola previene.
@@ -184,13 +189,16 @@ D=https://routing.maphub.it
 # casi, basta avere WM_V1_TOKEN nell'ambiente. GET /v1/version resta comunque
 # aperta.
 A="Authorization: Bearer $WM_V1_TOKEN"
-# la rotta POI non deve esistere: atteso "404 0" (codice e byte scaricati).
+# le rotte interne non devono esistere: atteso "404 0" (codice e byte scaricati).
 # Il 404 di Caddy non ha corpo; il 404 del gateway porta un JSON di una trentina
 # di byte. Senza la dimensione i due sarebbero indistinguibili, e se un domani lo
 # shard walkiria sparisse la verifica direbbe "protetta" anche senza matcher.
 curl -s -o /dev/null -w 'poi:         %{http_code} %{size_download}B\n' -H "$A" "$D/v1/walkiria/poi?lon=10.5&lat=43.75"
 # con lo slash finale: atteso "404 0" (senza, la regola sarebbe aggirata da Express)
 curl -s -o /dev/null -w 'poi/:        %{http_code} %{size_download}B\n' -H "$A" "$D/v1/walkiria/poi/?lon=10.5&lat=43.75"
+# le altre due rotte interne: atteso "404 0" anche per loro (lo script prova pure le forme con slash)
+curl -s -o /dev/null -w 'places:      %{http_code} %{size_download}B\n' -H "$A" "$D/v1/walkiria/places?bbox=10.4,43.7,10.6,43.8"
+curl -s -o /dev/null -w 'areas:       %{http_code} %{size_download}B\n' -H "$A" "$D/v1/walkiria/areas?kind=region&bbox=10.4,43.7,10.6,43.8"
 # il resto deve passare: atteso 200 con un corpo non vuoto, entrambe
 curl -s -o /dev/null -w 'route:       %{http_code} %{size_download}B\n' "$D/v1/walkiria/route" -H "$A" -H 'Content-Type: application/json' \
   -d '{"profile":"escursionista","points":[[10.30595,43.94908],[10.30479,43.99193]]}'
@@ -198,7 +206,7 @@ curl -s -o /dev/null -w 'version:     %{http_code} %{size_download}B\n' "$D/v1/v
 ```
 
 **Secondo blocco, sul server** (`ssh wm-tiles`), direttamente sul gateway senza passare
-da Caddy: la rotta deve funzionare, altrimenti Walkiria non ha i POI.
+da Caddy: le rotte devono funzionare, altrimenti Walkiria non ha i POI ne' i paesi.
 
 ```bash
 # anche qui l'intestazione non cambia l'esito finche' il gateway non chiede la
@@ -207,17 +215,23 @@ da Caddy: la rotta deve funzionare, altrimenti Walkiria non ha i POI.
 curl -s -o /dev/null -w 'poi interna: %{http_code} %{size_download}B\n' \
   -H "Authorization: Bearer $WM_V1_TOKEN" \
   'http://127.0.0.1:8991/v1/walkiria/poi?lon=10.5&lat=43.75'
+curl -s -o /dev/null -w 'places interna: %{http_code} %{size_download}B\n' \
+  -H "Authorization: Bearer $WM_V1_TOKEN" \
+  'http://127.0.0.1:8991/v1/walkiria/places?bbox=10.4,43.7,10.6,43.8'
+curl -s -o /dev/null -w 'areas interna: %{http_code} %{size_download}B\n' \
+  -H "Authorization: Bearer $WM_V1_TOKEN" \
+  'http://127.0.0.1:8991/v1/walkiria/areas?kind=region&bbox=10.4,43.7,10.6,43.8'
 ```
 
 Come si leggono gli esiti:
 
-| Esito esterno su `poi` e `poi/` | Cosa vuol dire |
+| Esito esterno su `poi`, `places`, `areas` (e `poi/`) | Cosa vuol dire |
 |---|---|
 | `404 0B` | il 404 e' di Caddy: la protezione c'e' |
 | `404` con un corpo | risponde il gateway, quindi la richiesta e' passata: il matcher non c'e' |
 | `200` | la rotta e' esposta |
 
-Se le chiamate POI esterne non danno `404 0B`, la rotta non e' protetta: rilanciare
+Se le chiamate esterne alle rotte interne non danno `404 0B`, la rotta non e' protetta: rilanciare
 `infra/pubblica-routing.sh` (vedi «Rilascio») e ripetere la verifica. Se `route` o
 `version` non rispondono `200` il matcher e' troppo largo: correggere lo script e
 rilanciarlo subito. Se la chiamata interna non risponde `200`, il problema e' il
@@ -228,7 +242,7 @@ gateway, non Caddy.
 Quello che segue e' lo stato al **2026-11-21**. Per lo stato di adesso non
 fidarti di questa pagina: chiedilo al servizio, col comando qui sotto. Chi
 accende la credenziale riscrive questa sezione **e** i commenti dei due blocchi
-di verifica della rotta POI, qui sopra.
+di verifica delle rotte interne, qui sopra.
 
 La prova, da fare sul server (`ssh wm-tiles`), e' una richiesta a una rotta dei
 dati **senza** intestazione. Non c'e' nessun segreto in gioco:
@@ -250,7 +264,7 @@ dominio pubblico (`https://routing.maphub.it/v1/walkiria/route`), che e' come e'
 stato misurato lo stato scritto qui: `400`, non `401`.
 
 Al 2026-11-21, quindi, **le rotte `/v1/<shard>/*` sono aperte** a chiunque
-raggiunga il gateway: da internet tutto tranne `/v1/*/poi`, che ferma Caddy
+raggiunga il gateway: da internet tutto tranne `/v1/*/poi`, `/v1/*/places` e `/v1/*/areas`, che ferma Caddy
 (vedi sopra); dalla macchina del server, tutto. Nello `.env` di sviluppo di
 questo repo `WM_V1_TOKEN` non c'e'; che cosa ci sia nello `.env` del server il
 `curl` non lo dice, e non serve saperlo: conta l'esito.
