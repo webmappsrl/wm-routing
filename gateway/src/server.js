@@ -8,6 +8,7 @@ import {createEngine} from './engine.js';
 import {makeFallbackRoute, makeRouteCore, makeRouteHandler} from './route.js';
 import {makeRejoinHandler} from './rejoin/rejoin.js';
 import {makePoiHandler} from './poi-handler.js';
+import {makePlacesHandler, makeAreasHandler} from './bbox-handler.js';
 import {makeGRouter} from './mcp/g-route.js';
 import {makeResolvePoi} from './mcp/poi.js';
 import {makeMcpHttpHandler} from './mcp/http.js';
@@ -27,8 +28,10 @@ const rejoin = makeRejoinHandler({config, engine, compute: makeRouteCore(deps),
   matchLimits: {meanM: 30, maxM: 100}, bbox: BBOX});
 
 const poi = makePoiHandler({waysDb});
+const places = makePlacesHandler({waysDb});
+const areas = makeAreasHandler({waysDb});
 
-const app = createApp({config, dataStamp, area: BBOX, handlers: {route, rejoin, poi}});
+const app = createApp({config, dataStamp, area: BBOX, handlers: {route, rejoin, poi, places, areas}});
 app.use('/preview', express.static(process.env.WM_PREVIEW ?? new URL('../../preview', import.meta.url).pathname));
 // link firmati dei deliverable MCP: la rotta esiste solo se c'e' la chiave.
 // Lo stesso fallback per tratti di /v1: un giro consegnato in chat col

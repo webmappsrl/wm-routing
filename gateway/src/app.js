@@ -52,5 +52,7 @@ export function createApp({config, dataStamp, area, handlers = {}}) {
   if (handlers.route) app.post('/v1/:shard/route', handlers.route);
   if (handlers.rejoin) app.post('/v1/:shard/rejoin', handlers.rejoin);
   if (handlers.poi) app.get('/v1/:shard/poi', handlers.poi);
+  if (handlers.places) app.get('/v1/:shard/places', handlers.places);
+  if (handlers.areas) app.get('/v1/:shard/areas', handlers.areas);
   return app;
 }
