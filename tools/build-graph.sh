@@ -21,6 +21,8 @@ CONFIG="${WM_ENGINE_CONFIG:-config.yml}"      # config-cella.yml sulla cella di 
 # uso, quindi cancellerebbe quella di un'altra build in corso. Lock non bloccante e uscita 75, come gli
 # altri rinvii: chi lancia (cron o a mano) riprova dopo, senza restare appeso per ore a una build lunga.
 # Il lock sta sul file descriptor 9 e si rilascia da solo all'uscita, anche se lo script muore.
+# senza flock "! flock" leggerebbe il 127 di comando non trovato come lock preso: rinvio falso ogni notte
+command -v flock >/dev/null || { echo "!! flock non trovato: serve per non far girare due build insieme" >&2; exit 1; }
 mkdir -p "$ROOT"
 exec 9>"$ROOT/.build.lock"
 if ! flock -n 9; then
@@ -39,14 +41,15 @@ fi
 TS=$(bash tools/data-stamp.sh "$PBF" "$DEM")
 STAMP_DIR=$(echo "$TS" | tr -d ':')
 CUR=$(readlink "$ROOT/corrente" 2>/dev/null || true)
-# il collegamento puo' essere relativo: si confrontano sempre i nomi delle cartelle, mai i percorsi
+# il collegamento puo' essere relativo: il grafo in uso si riconosce dal nome della cartella, non dal
+# percorso (quelli che nascono entrambi da $ROOT, come DIR e le cartelle del glob, si confrontano interi)
 CUR_NAME=$(basename "${CUR:-/}")
 # la data del grafo in uso si legge dal nome, senza l'eventuale "-r<ora>" di una ricostruzione:
 # cosi' "stesso dato" vale anche dopo una ricostruzione, non solo alla prima
 CUR_STAMP=${CUR_NAME%%-r*}
 if [ "$STAMP_DIR" = "$CUR_STAMP" ]; then
   if [ "${WM_REBUILD_SAME_DATA:-0}" != 1 ]; then
-    if [ ! -d "$ROOT/$CUR_NAME" ]; then
+    if [ ! -d "$ROOT/corrente" ]; then     # segue il collegamento, anche fuori da $ROOT
       echo "!! corrente punta a $CUR_NAME, che non esiste: nessun grafo in uso, da ripristinare a mano." >&2
       exit 2
     fi
