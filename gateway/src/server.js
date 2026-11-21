@@ -32,8 +32,9 @@ const places = makePlacesHandler({waysDb});
 const areas = makeAreasHandler({waysDb});
 
 // la credenziale sulle rotte dei dati. Assente, le rotte restano aperte: sul Mac
-// si lavora senza segreti. Uno stato pericoloso pero' non resta silenzioso, e in
-// produzione lo ferma la prova di infra/pubblica-routing.sh
+// si lavora senza segreti. Uno stato pericoloso pero' non resta silenzioso: in
+// produzione lo dice la prova di infra/pubblica-routing.sh (ferma il rilascio se il
+// token c'e' e il gateway non lo chiede; se manca lo avvisa soltanto)
 if (!process.env.WM_V1_TOKEN)
   console.log('ATTENZIONE: WM_V1_TOKEN assente, le rotte /v1 sono aperte a chiunque');
 

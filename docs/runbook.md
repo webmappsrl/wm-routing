@@ -45,15 +45,17 @@ Caddy nuova, o tutte e due. **I due passi vanno in quest'ordine e nessuno dei du
 e' opzionale.**
 
 ```bash
-cd /srv/wm-routing && git pull
+cd /srv/wm-routing && git pull &&
 # 1. PRIMA Caddy. Lo script riscrive /etc/caddy/siti/routing.caddy da zero ed e'
 #    la sola fonte di quel file: matcher delle rotte interne e blocco /mcp
 #    compresi. Non lo rilancia nessun altro: ne' build-graph.sh, ne'
 #    check-data.sh, ne' `docker compose up`. Saltarlo lascia sul server la
 #    configurazione vecchia, e una rotta interna nuova nasce pubblica.
-DOMINIO=routing.maphub.it bash infra/pubblica-routing.sh
+#    I comandi sono legati da && perche' il blocco si incolla intero: se lo script
+#    esce con errore, il deploy del gateway non parte.
+DOMINIO=routing.maphub.it bash infra/pubblica-routing.sh &&
 # 2. POI il gateway.
-source tools/bbox.sh && docker compose up -d --build gateway
+source tools/bbox.sh && docker compose up -d --build gateway &&
 bash tools/log-check.sh
 ```
 
@@ -66,8 +68,10 @@ la durata del riavvio e' raggiungibile da internet.
 
 Lo script si controlla da solo: dopo il reload chiede `/v1/version` e verifica
 che `/v1/walkiria/poi`, con e senza slash finale, risponda `404` da internet. Se
-non e' cosi' esce con errore, e una configurazione in cui la protezione non
-funziona non resta pubblicata. La verifica a mano, piu' larga, e' in
+non e' cosi' esce con errore e il rilascio si ferma, ma la configurazione **resta
+pubblicata**: il file e' gia' scritto e Caddy gia' ricaricato, e lo script non
+ripristina niente. Per tornare indietro si rilancia lo script della release
+precedente. La verifica a mano, piu' larga, e' in
 «[La rotta dei POI resta interna](#la-rotta-dei-poi-resta-interna)».
 
 ## Aggiornamento notturno
@@ -103,8 +107,12 @@ Nella pipeline di wm-tiles non c'e' niente da annullare.
 `GET /v1/:shard/poi` serve il backend di Walkiria, che gira sulla stessa macchina e
 raggiunge il gateway dalla rete interna (`127.0.0.1:8991`). **Caddy non deve
 pubblicarla**, e non va fatto a mano: `infra/pubblica-routing.sh` genera
-`/etc/caddy/siti/routing.caddy` con la regola `@interne path /v1/*/poi /v1/*/poi/` (anche con lo slash finale, che Express serve) +
-`respond @interne 404` prima del `reverse_proxy`. Una regola scritta a mano sul server
+`/etc/caddy/siti/routing.caddy` con la regola `@interne path $INTERNI` +
+`respond @interne 404` prima del `reverse_proxy`. `INTERNI` e' una variabile sola,
+in cima allo script (oggi `/v1/*/poi /v1/*/poi/`: anche con lo slash finale, che
+Express serve): la leggono sia la regola sia il ciclo che alla fine dello script
+prova il 404, quindi un percorso interno in piu' si aggiunge li' e in nessun altro
+punto. Una regola scritta a mano sul server
 verrebbe cancellata al rilancio dello script, quindi la protezione sta nello script.
 Lo stesso vale per tutto il resto di quel file, blocco `/mcp` compreso: lo script lo
 riscrive da zero ed e' la sua sola fonte (vedi «Rilascio» e `infra/mcp.md`).
@@ -192,8 +200,8 @@ Come si legge l'esito, in tre casi distinti:
 | Esito | Cosa vuol dire |
 |---|---|
 | `401` | credenziale **accesa** |
-| una risposta del gateway diversa da `401` (`400`, `200`, `429`) | rotte **aperte**: il gateway ha servito una richiesta che nessuno ha autorizzato. `400` e' lui che si lamenta del corpo, `429` il limite di richieste |
-| `000`, `5xx`, `404` | **la prova non ha misurato niente**: il gateway non ha risposto (giu', in riavvio, porta sbagliata, oppure un 502/503 di Caddy), o la rotta chiesta non e' quella giusta. Rifare la prova, non concludere |
+| `200`, `400` o `429`, e nessun altro codice | rotte **aperte**: il gateway ha servito una richiesta che nessuno ha autorizzato. `400` e' lui che si lamenta del corpo, `429` il limite di richieste |
+| qualunque altro codice: `000`, `5xx`, `404`, `403`... | **la prova non ha misurato niente**: il gateway non ha risposto (giu', in riavvio, porta sbagliata, oppure un 502/503 di Caddy), o la richiesta e' stata fermata prima della credenziale (un `404` puo' essere uno shard sconosciuto). Rifare la prova, non concludere |
 
 Il terzo caso non dice «aperte»: dice che non si sa. Lo stesso comando vale dal
 dominio pubblico (`https://routing.maphub.it/v1/walkiria/route`), che e' come e'
@@ -213,7 +221,7 @@ controllo e resta aperta in ogni caso: e' la prova di vita che
 `infra/pubblica-routing.sh` usa dopo il reload di Caddy.
 
 Il meccanismo e' **fail-open per costruzione**: senza la variabile il gateway
-parte lo stesso e si limita ad avvisare (`gateway/src/server.js:37-38`, riga
+parte lo stesso e si limita ad avvisare (`gateway/src/server.js:38-39`, riga
 `ATTENZIONE: WM_V1_TOKEN assente, le rotte /v1 sono aperte a chiunque`). E'
 voluto, perche' sul Mac si lavora senza segreti. L'avviso nel log e' un indizio
 in piu', non una prova: **zero righe non vuol dire niente da solo**. Un gateway
@@ -246,6 +254,36 @@ vale anche su un gateway vecchio.
   momento. Nota per l'altro repo: `.env.example:92` e `server/src/config.ts:52`
   dicono ancora che il gateway non ha autenticazione: vero oggi, da aggiornare
   li' il giorno dell'accensione.
+- **La sequenza di accensione, e come si passa il token allo script.**
+  `infra/pubblica-routing.sh` misura il gateway che e' in piedi in quel momento,
+  non quello che stai per mettere, e nel «Rilascio» gira **prima** del deploy del
+  gateway. Il giorno dell'accensione i passi sono tre, in quest'ordine:
+  1. pubblicare **senza** `WM_V1_TOKEN`: il gateway in piedi e' ancora quello
+     vecchio, che il token non lo chiede, e la prova torna «aperte» come atteso.
+     Questo vale solo se e' vero: se il gateway in piedi ha gia' il token (passo
+     2 gia' fatto, o deploy a meta'), il passo 1 si ferma per disaccordo, e si
+     salta direttamente al 3;
+  2. deployare il gateway **con** `WM_V1_TOKEN` nel suo ambiente;
+  3. pubblicare di nuovo, questa volta **con** il token: ora la prova pretende
+     `401` e un token di almeno 32 caratteri.
+
+  Passando il token al primo passo, il gateway vecchio risponde `400` e lo script
+  si ferma per disaccordo: la procedura non si completerebbe mai. Da li' in poi
+  `WM_V1_TOKEN` va passato a **ogni** pubblicazione, altrimenti lo script trova
+  un gateway che risponde `401` con il token assente e fallisce per lo stesso
+  motivo. Quello che non va fatto e' scrivere il **valore** del token su una
+  riga di comando, `ssh` compreso: finirebbe nella lista dei processi del server
+  (`ps`). Va letto da un file sul server, e la lettura la fa la shell del
+  server, dove il valore viaggia nell'ambiente del processo e non negli argomenti
+  di nessun comando. Con `ssh` si puo' usare, a patto che l'espansione sia dentro
+  gli apici (`ssh wm-tiles 'WM_V1_TOKEN=$(cat /root/wm-v1-token) DOMINIO=... bash -s'
+  < infra/pubblica-routing.sh`); oppure si lancia dal server, come nel
+  «Rilascio»:
+  `WM_V1_TOKEN=$(cat /root/wm-v1-token) DOMINIO=routing.maphub.it bash infra/pubblica-routing.sh`.
+  Il file si crea con proprietario root e permessi `600`, prima di scriverci
+  dentro: `install -m 600 -o root /dev/null /root/wm-v1-token`, poi il valore con
+  un editor (non con `echo`, che lo lascerebbe nella cronologia della shell). Il
+  percorso e' un esempio, il file non esiste ancora.
 - **Il connettore MCP invece e' gia' a posto.** I suoi tool escono dal processo e
   rientrano da `POST /v1/mcp/route`: l'intestazione la mette
   `gateway/src/mcp/v1-auth.js`, purche' il processo abbia `WM_V1_TOKEN`
