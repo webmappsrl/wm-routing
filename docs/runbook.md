@@ -124,9 +124,13 @@ si prova in piu' che DNS e certificato pubblico funzionano).
 
 ```bash
 D=https://routing.maphub.it
-# le rotte /v1/<shard>/* vogliono la credenziale: senza, rispondono 401.
-# Il valore e' WM_V1_TOKEN nello .env del server (ssh wm-tiles, /srv/wm-routing/.env).
-# GET /v1/version resta aperta: e' la prova di vita del rilascio.
+# Oggi WM_V1_TOKEN non e' impostato e le rotte /v1 sono aperte: l'intestazione
+# qui sotto parte senza valore, il gateway non la guarda, e i comandi riescono
+# perche' credenziale non ce n'e', non perche' quella mandata sia quella giusta.
+# Non e' una prova sulla credenziale: e' una prova sul matcher di Caddy, e vale
+# comunque. Il giorno in cui il token si accende questi comandi funzionano senza
+# modifiche, basta avere WM_V1_TOKEN nell'ambiente. Vedi «La credenziale delle
+# rotte dei dati». GET /v1/version resta aperta in ogni caso.
 A="Authorization: Bearer $WM_V1_TOKEN"
 # la rotta POI non deve esistere: atteso "404 0" (codice e byte scaricati).
 # Il 404 di Caddy non ha corpo; il 404 del gateway porta un JSON di una trentina
@@ -145,6 +149,8 @@ curl -s -o /dev/null -w 'version:     %{http_code} %{size_download}B\n' "$D/v1/v
 da Caddy: la rotta deve funzionare, altrimenti Walkiria non ha i POI.
 
 ```bash
+# anche qui l'intestazione oggi parte senza valore e non cambia l'esito: vedi
+# «La credenziale delle rotte dei dati»
 curl -s -o /dev/null -w 'poi interna: %{http_code} %{size_download}B\n' \
   -H "Authorization: Bearer $WM_V1_TOKEN" \
   'http://127.0.0.1:8991/v1/walkiria/poi?lon=10.5&lat=43.75'
@@ -163,6 +169,57 @@ Se le chiamate POI esterne non danno `404 0B`, la rotta non e' protetta: rilanci
 `version` non rispondono `200` il matcher e' troppo largo: correggere lo script e
 rilanciarlo subito. Se la chiamata interna non risponde `200`, il problema e' il
 gateway, non Caddy.
+
+## La credenziale delle rotte dei dati: oggi e' spenta
+
+Il gateway sa chiedere una credenziale sulle rotte `/v1/<shard>/*`, ma **oggi non
+e' accesa**: `WM_V1_TOKEN` non ha un valore, ne' in locale ne' in produzione, e
+quelle rotte sono aperte a chiunque raggiunga il gateway: da internet tutto
+tranne `/v1/*/poi`, che ferma Caddy (vedi sopra); dalla macchina del server,
+tutto. Verificato il 2026-11-21: `POST https://routing.maphub.it/v1/walkiria/route`
+senza nessuna intestazione risponde `400` sul contenuto della richiesta, non `401`.
+
+Con la variabile impostata, una richiesta a `/v1/<shard>/*` senza
+`Authorization: Bearer <token>` riceve `401 {"stato":"non_autorizzato"}`, e il
+controllo sta prima del limite di richieste, cosi' una richiesta respinta non
+consuma il secchio di qualcun altro. `GET /v1/version` non passa da quel
+controllo e resta aperta in ogni caso: e' la prova di vita che
+`infra/pubblica-routing.sh` usa dopo il reload di Caddy.
+
+Il meccanismo e' **fail-open per costruzione**: senza la variabile il gateway
+parte lo stesso e si limita ad avvisare (`gateway/src/server.js:37-38`, riga
+`ATTENZIONE: WM_V1_TOKEN assente, le rotte /v1 sono aperte a chiunque`). E'
+voluto, perche' sul Mac si lavora senza segreti, ed e' anche il modo piu' rapido
+per sapere come sta messo un gateway:
+
+```bash
+ssh wm-tiles 'cd /srv/wm-routing && docker compose logs gateway | grep -c "WM_V1_TOKEN assente"'
+```
+
+Una riga di avviso vuol dire rotte aperte; nessuna riga vuol dire credenziale
+accesa. Il valore del segreto non si stampa e non si incolla da nessuna parte:
+si guarda se c'e', non quanto vale.
+
+### Cosa va sistemato prima di accenderla
+
+Accenderla oggi romperebbe cose che funzionano. Prima di mettere `WM_V1_TOKEN`
+nello `.env` del server:
+
+- **La preview pubblica.** `preview/preview.js` (righe 325, 1213, 1416) chiama
+  `/v1/<shard>/route`, `/v1/<shard>/rejoin` e `/v1/<shard>/profiles` **dal
+  browser**, con `SHARD = 'preview'`. Una pagina pubblica non puo' tenere un
+  segreto: un token scritto li' dentro lo leggono tutti, e quindi non e' un
+  token. La scelta e' aperta e nessuno l'ha ancora fatta: lasciare lo shard
+  `preview` senza credenziale, chiudere la preview pubblica, oppure metterla
+  dietro qualcosa che inietti l'intestazione al posto della pagina.
+- **Il backend di Walkiria** (altro repo). Chiama `GET /v1/:shard/poi` e
+  `POST /v1/:shard/route` mandando solo `Content-Type: application/json`: con la
+  credenziale accesa prenderebbe `401` e Walkiria resterebbe senza POI e senza
+  percorsi. Va cambiato li', prima o insieme all'accensione.
+- **Il connettore MCP invece e' gia' a posto.** I suoi tool escono dal processo e
+  rientrano da `POST /v1/mcp/route`: l'intestazione la mette
+  `gateway/src/mcp/v1-auth.js`, purche' il processo abbia `WM_V1_TOKEN`
+  nell'ambiente (lo passa il compose).
 
 ## Spegnimento del GraphHopper di produzione
 
