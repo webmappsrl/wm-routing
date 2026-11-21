@@ -1,9 +1,26 @@
 import express from 'express';
+import {timingSafeEqual} from 'node:crypto';
 import {corsHeaders} from './cors.js';
 import {createRateLimiter} from './rate-limit.js';
 import {logEvent} from './log.js';
 
-export function createApp({config, dataStamp, area, handlers = {}}) {
+// Confronto fra segreti: mai con ===, che si ferma al primo carattere diverso e
+// racconta quanti ne ha indovinati chi prova. timingSafeEqual vuole lunghezze
+// pari, quindi la differenza di lunghezza si tratta prima, a parte.
+function tokenGiusto(atteso, ricevuto) {
+  if (typeof ricevuto !== 'string') return false;
+  const a = Buffer.from(atteso), b = Buffer.from(ricevuto);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+// 'Bearer <token>', con lo schema che non guarda le maiuscole
+function tokenDellIntestazione(authorization) {
+  if (typeof authorization !== 'string') return undefined;
+  const m = /^Bearer[ \t]+(.+)$/i.exec(authorization.trim());
+  return m ? m[1].trim() : undefined;
+}
+
+export function createApp({config, dataStamp, area, v1Token, handlers = {}}) {
   const app = express();
   app.disable('x-powered-by');
   // dietro Caddy le richieste arrivano dal proxy: senza fidarsi di lui tutti gli
@@ -33,6 +50,13 @@ export function createApp({config, dataStamp, area, handlers = {}}) {
     const cors = corsHeaders(shard, req.get('Origin'));
     if (cors) res.set(cors);
     if (req.method === 'OPTIONS') return res.status(204).end();
+    // la credenziale prima del limite di richieste: una richiesta non
+    // autorizzata non deve consumare il secchio di qualcun altro
+    if (v1Token && !tokenGiusto(v1Token, tokenDellIntestazione(req.get('Authorization')))) {
+      logEvent({route: `/v1/:shard${p}`, status: 401, ms: Date.now() - t0,
+        shard: req.params.shard, stato: 'non_autorizzato'});
+      return res.status(401).json({stato: 'non_autorizzato'});
+    }
     if (!limiters[req.params.shard].take(`${req.params.shard}|${req.ip}`))
       return res.status(429).json({stato: 'troppe_richieste'});
     res.on('finish', () => logEvent({

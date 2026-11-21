@@ -124,15 +124,19 @@ si prova in piu' che DNS e certificato pubblico funzionano).
 
 ```bash
 D=https://routing.maphub.it
+# le rotte /v1/<shard>/* vogliono la credenziale: senza, rispondono 401.
+# Il valore e' WM_V1_TOKEN nello .env del server (ssh wm-tiles, /srv/wm-routing/.env).
+# GET /v1/version resta aperta: e' la prova di vita del rilascio.
+A="Authorization: Bearer $WM_V1_TOKEN"
 # la rotta POI non deve esistere: atteso "404 0" (codice e byte scaricati).
 # Il 404 di Caddy non ha corpo; il 404 del gateway porta un JSON di una trentina
 # di byte. Senza la dimensione i due sarebbero indistinguibili, e se un domani lo
 # shard walkiria sparisse la verifica direbbe "protetta" anche senza matcher.
-curl -s -o /dev/null -w 'poi:         %{http_code} %{size_download}B\n' "$D/v1/walkiria/poi?lon=10.5&lat=43.75"
+curl -s -o /dev/null -w 'poi:         %{http_code} %{size_download}B\n' -H "$A" "$D/v1/walkiria/poi?lon=10.5&lat=43.75"
 # con lo slash finale: atteso "404 0" (senza, la regola sarebbe aggirata da Express)
-curl -s -o /dev/null -w 'poi/:        %{http_code} %{size_download}B\n' "$D/v1/walkiria/poi/?lon=10.5&lat=43.75"
+curl -s -o /dev/null -w 'poi/:        %{http_code} %{size_download}B\n' -H "$A" "$D/v1/walkiria/poi/?lon=10.5&lat=43.75"
 # il resto deve passare: atteso 200 con un corpo non vuoto, entrambe
-curl -s -o /dev/null -w 'route:       %{http_code} %{size_download}B\n' "$D/v1/walkiria/route" -H 'Content-Type: application/json' \
+curl -s -o /dev/null -w 'route:       %{http_code} %{size_download}B\n' "$D/v1/walkiria/route" -H "$A" -H 'Content-Type: application/json' \
   -d '{"profile":"escursionista","points":[[10.30595,43.94908],[10.30479,43.99193]]}'
 curl -s -o /dev/null -w 'version:     %{http_code} %{size_download}B\n' "$D/v1/version"
 ```
@@ -142,6 +146,7 @@ da Caddy: la rotta deve funzionare, altrimenti Walkiria non ha i POI.
 
 ```bash
 curl -s -o /dev/null -w 'poi interna: %{http_code} %{size_download}B\n' \
+  -H "Authorization: Bearer $WM_V1_TOKEN" \
   'http://127.0.0.1:8991/v1/walkiria/poi?lon=10.5&lat=43.75'
 ```
 

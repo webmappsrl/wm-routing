@@ -203,3 +203,17 @@ it('linkGpx e\' l\'indirizzo pubblico, mai quello del gateway, e senza doppio sl
   expect(d.linkGpx).toBe(`https://x.it/g/gpx?t=${t()}`);
   expect(d.linkGpx).not.toContain('127.0.0.1');
 });
+
+it('con la credenziale configurata, la chiamata interna a /v1 la porta', async () => {
+  const visti = [];
+  const fetchFn = async (url, opts) => {
+    visti.push({url: String(url), auth: opts?.headers?.Authorization});
+    return String(url).includes('/v1/version')
+      ? {ok: true, status: 200, json: async () => ({osm: fixture.data.osm})}
+      : {ok: true, status: 200, json: async () => fixture};
+  };
+  await tool({fetchFn, v1Token: 'token-di-prova'})({t: t(), titolo: 'Giro', testo: 'ciao'});
+  const chiamata = visti.find(v => v.url.includes('/v1/mcp/route'));
+  expect(chiamata).toBeDefined();
+  expect(chiamata.auth).toBe('Bearer token-di-prova');
+});

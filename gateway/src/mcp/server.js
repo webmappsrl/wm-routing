@@ -6,6 +6,7 @@ import {z} from 'zod';
 import {compactRoute} from './compact.js';
 import {encodeLink, LinkError} from './link.js';
 import {makeDocumentoTool} from './documento.js';
+import {intestazioneV1} from './v1-auth.js';
 import {makePoiNearbyTool, makeResolvePoi} from './poi.js';
 import {MAX_MARKDOWN} from './markdown.js';
 import {profiloPng} from './profilo.js';
@@ -107,7 +108,7 @@ avvisi compare "trattiConAltroProfilo", di' all'utente quali tratti sono
 stati calcolati con un profilo piu' permissivo del suo: non nasconderlo.`;
 
 // Il tool route: valida, chiama /v1 e compatta. Esportato per i test.
-export function makeRouteTool({gatewayUrl, publicUrl = gatewayUrl, linkKey, fetchFn = fetch, profiloFn = profiloPng}) {
+export function makeRouteTool({gatewayUrl, publicUrl = gatewayUrl, linkKey, fetchFn = fetch, profiloFn = profiloPng, v1Token}) {
   return async function routeTool({points, profile}) {
     if (!Array.isArray(points) || points.length < 2) return {stato: 'punti_insufficienti'};
     if (points.length > 25) return {stato: 'troppi_punti', massimo: 25};
@@ -116,7 +117,7 @@ export function makeRouteTool({gatewayUrl, publicUrl = gatewayUrl, linkKey, fetc
     let r;
     try {
       r = await fetchFn(`${gatewayUrl}/v1/mcp/route`, {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
+        method: 'POST', headers: {'Content-Type': 'application/json', ...intestazioneV1(v1Token)},
         body: JSON.stringify({profile, points}),
       });
     } catch { return {stato: 'gateway_non_raggiungibile'}; }

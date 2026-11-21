@@ -23,8 +23,13 @@ function share(segments, coordsLen, isNetwork) {
   return on / (coordsLen - 1);
 }
 
-async function post(url, body) {
-  const r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+// La credenziale va solo al nostro gateway: il GraphHopper di produzione e' un
+// altro servizio e un segreto non si manda a chi non lo deve avere.
+const AUTH_V1 = process.env.WM_V1_TOKEN ? {Authorization: `Bearer ${process.env.WM_V1_TOKEN}`} : {};
+
+async function post(url, body, headers = {}) {
+  const r = await fetch(url, {method: 'POST',
+    headers: {'Content-Type': 'application/json', ...headers}, body: JSON.stringify(body)});
   return {ok: r.ok, json: await r.json().catch(() => ({}))};
 }
 
@@ -37,7 +42,7 @@ async function main() {
   let open = 0;
   for (const r of routes) {
     const [n, p] = await Promise.all([
-      post(NEW, {profile: r.nuovo, points: r.points}),
+      post(NEW, {profile: r.nuovo, points: r.points}, AUTH_V1),
       post(PROD, {profile: r.produzione, points: r.points, points_encoded: false, elevation: true,
                   instructions: false, details: ['foot_network']}),
     ]);

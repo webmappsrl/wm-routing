@@ -373,3 +373,17 @@ it('istruzioni: nessuna frase permette di saltare o aggirare il gate', () => {
   expect(INSTRUCTIONS).not.toMatch(/(se|quando)[^.]*(fretta|urgen|insiste)[^.]*(salt|ometti|senza|puoi)/i);
   expect(INSTRUCTIONS).not.toMatch(/gate[^.]*(si puo'|puoi|e' possibile)[^.]*(salt|omett|ignor)/i);
 });
+
+it('con la credenziale configurata, la chiamata interna a /v1 la porta', async () => {
+  const visti = [];
+  const fetchFn = async (url, opts) => {
+    visti.push({url: String(url), auth: opts?.headers?.Authorization});
+    return String(url).includes('/v1/version')
+      ? {ok: true, status: 200, json: async () => ({area: [10, 43, 11, 44]})} : okReply;
+  };
+  const t = makeRouteTool({gatewayUrl: base, publicUrl: base, linkKey: key, fetchFn,
+    v1Token: 'token-di-prova'});
+  await t({points: [[10.5216, 43.7249], [10.5455, 43.76]], profile: 'escursionista'});
+  expect(visti[0].url).toContain('/v1/mcp/route');
+  expect(visti[0].auth).toBe('Bearer token-di-prova');
+});

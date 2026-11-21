@@ -24,4 +24,5 @@ await makeMcpServer({
   publicUrl: publicUrlDi(process.env.WM_PUBLIC_URL, gatewayUrl),
   linkKey,
   waysDbPath: process.env.WM_WAYS_DB ?? new URL('../../../data/ways.sqlite', import.meta.url).pathname,
+  v1Token: process.env.WM_V1_TOKEN ?? fromDotenv('WM_V1_TOKEN'),
 }).connect(new StdioServerTransport());
