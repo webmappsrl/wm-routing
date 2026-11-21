@@ -44,7 +44,8 @@ PREP=(docker run --rm --oom-score-adj 900 --memory "${WM_PREP_MEM:-12g}" -e WM_G
 "${PREP[@]}" bash clip.sh "/in/$(basename "$PBF")" /out/ritagliato.osm.pbf
 # indice delle posizioni dei nodi su file, nella cartella del grafo (disco locale):
 # in memoria sul nazionale non starebbe
-"${PREP[@]}" python enrich.py /out/ritagliato.osm.pbf /out/arricchito.osm.pbf /out/ways.sqlite /out/tiles-z13.txt
+"${PREP[@]}" python enrich.py /out/ritagliato.osm.pbf /out/arricchito.osm.pbf /out/ways.sqlite /out/tiles-z13.txt \
+  | tee "$DIR/prepare.json"   # il riassunto resta accanto al grafo: lo legge il controllo
 rm -f "$DIR/nodi.idx"
 cp "$DEM" "$DIR/terrain.pmtiles"
 # nessuna via deve cadere in una tile senza quote (GraphHopper metterebbe 0)
@@ -63,7 +64,8 @@ for i in $(seq 180); do curl -fs localhost:18990/health >/dev/null && break; sle
 NODES=$(docker logs wm-engine-gate 2>&1 | sed -n 's/.*nodes: \([0-9,]*\)(.*/\1/p' | tr -d ',' | head -1)
 printf '{"osm":"%s","builtAt":"%s","pbf":"%s","nodes":%s}\n' \
   "$TS" "$(date -u +%FT%TZ)" "$PBF" "${NODES:-0}" > "$DIR/stamp.json"
-node tools/gate.mjs http://127.0.0.1:18990 "$DIR/stamp.json" "$ROOT/corrente/stamp.json" || exit 3
+node tools/gate.mjs http://127.0.0.1:18990 "$DIR/stamp.json" "$ROOT/corrente/stamp.json" \
+  "$DIR/prepare.json" "$ROOT/corrente/prepare.json" || exit 3
 docker rm -f wm-engine-gate >/dev/null
 
 ln -sfn "$DIR" "$ROOT/corrente"
