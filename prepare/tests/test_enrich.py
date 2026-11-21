@@ -111,8 +111,12 @@ def test_poi_table(result):
     fonte = pois["Fonte di Prova"]                   # n91: fontana senza wiki
     assert fonte["kind"] == "drinking_water"
     assert fonte["wikipedia"] is None and fonte["wikidata"] is None
+    citta = pois["Citta di Prova"]                   # n93: place=city
+    assert citta["kind"] == "city"
+    paese = pois["Paese di Prova"]                   # n94: place=town
+    assert paese["kind"] == "town"
     names = set(pois)
-    assert names == {"Monte Prova", "Fonte di Prova"}   # n92 senza nome resta fuori
+    assert names == {"Monte Prova", "Fonte di Prova", "Citta di Prova", "Paese di Prova"}   # n92 senza nome resta fuori
 
 
 def test_relazioni_mtb_separate_da_quelle_a_piedi(result):

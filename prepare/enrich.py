@@ -42,7 +42,7 @@ POI_KINDS = {("natural", "peak"): "peak", ("natural", "saddle"): "saddle",
              ("tourism", "alpine_hut"): "alpine_hut",
              ("tourism", "wilderness_hut"): "wilderness_hut",
              ("tourism", "viewpoint"): "viewpoint"}
-POI_PLACES = {"village", "hamlet", "locality"}
+POI_PLACES = {"city", "town", "village", "hamlet", "locality"}
 
 
 class Pois(osmium.SimpleHandler):
