@@ -14,7 +14,7 @@ Si rilegge con `git cat-file -p ab09c2e36396cd5009935e366ae09aa1841d2d97`.
 ### 2026-11-21 — La credenziale: due riferimenti che non erano piu' veri
 - **Requisito:** [R9](overview.md#r9)
 - **Effetto:** modificato
-- **Decide:** agente
+- **Decide:** dev (confermato il 2026-11-21: correzioni di frasi rese false dal lavoro, nessun cambio di sostanza)
 - **Motivo:** chiusura dei documenti. Il numero di riga di `server.js` (36-51) era slittato di undici righe con il lavoro, e il client di Walkiria non manda piu' «solo» `Content-Type`: il backend aggiunge `Authorization` se ha `WM_ROUTING_TOKEN`. Il requisito non cambia, e «Oggi non ne vuole nessuna» e' rimasto vero (richiesta senza intestazione a produzione, 2026-11-21: `400`).
 - **Testo nuovo:**
   > Le rotte dei dati di `/v1/` **vogliono una credenziale**, e senza
@@ -33,7 +33,7 @@ Si rilegge con `git cat-file -p ab09c2e36396cd5009935e366ae09aa1841d2d97`.
 ### 2026-11-21 — L'elenco dei percorsi interni: «oggi» diventa «prima del lavoro»
 - **Requisito:** [R10](overview.md#r10)
 - **Effetto:** modificato
-- **Decide:** agente
+- **Decide:** dev (confermato il 2026-11-21: correzioni di frasi rese false dal lavoro, nessun cambio di sostanza)
 - **Motivo:** chiusura dei documenti. Il requisito e' soddisfatto: l'elenco e' uno solo, `INTERNI`. La frase «Oggi l'elenco e' scritto due volte» era diventata falsa, e le righe 24 e 49 sono quelle della versione `a7298f8`.
 - **Testo nuovo:**
   > L'elenco dei percorsi che non devono uscire su internet
@@ -46,7 +46,7 @@ Si rilegge con `git cat-file -p ab09c2e36396cd5009935e366ae09aa1841d2d97`.
 ### 2026-11-21 — Il controllo del dato: «oggi» diventa «prima del lavoro»
 - **Requisito:** [R11](overview.md#r11)
 - **Effetto:** modificato
-- **Decide:** agente
+- **Decide:** dev (confermato il 2026-11-21: correzioni di frasi rese false dal lavoro, nessun cambio di sostanza)
 - **Motivo:** chiusura dei documenti. Il requisito e' soddisfatto: `tools/gate.mjs` legge ora il riassunto del pre-passo. «Non legge `ways.sqlite`» resta vero, ma e' tolto dal requisito perche' non e' la sua misura, e `prepare/enrich.py:75-89` e' diventato un riferimento a `extract_pois`, perche' le righe sono slittate.
 - **Testo nuovo:**
   > Il controllo che precede lo scambio del grafo **guarda anche il
