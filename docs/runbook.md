@@ -38,8 +38,9 @@ e la tabella `area`: regioni amministrative (livello 4) e zone (`place=region`),
 ognuna col proprio rettangolo. `area` si riscrive da zero a ogni arricchimento.
 Un grafo costruito prima di questa modifica non ha la tabella: `/areas` risponde
 `200` con `vuoto: "dati senza aree: grafo da rigenerare"`, non un errore. Si
-rigenera con `build-graph.sh` a mano, perche' `check-data.sh` ricostruisce solo
-se la data del PBF o delle quote e' cambiata. Prima dello scambio il controllo
+rigenera con `build-graph.sh` a mano e, se il dato OSM non e' cambiato, con
+`WM_REBUILD_SAME_DATA=1` (vedi sotto), perche' `check-data.sh` ricostruisce solo se
+la data del PBF o delle quote e' cambiata. Prima dello scambio il controllo
 guarda anche il riassunto del pre-passo (`prepare.json`): se `ways` o `pois` sono a
 zero, o calano oltre il 5% rispetto al grafo in uso, esce con **3**. Le aree sono
 un caso a parte: si pretendono solo se il pre-passo ne ha viste nel file
@@ -49,11 +50,38 @@ piu' nessuna. Su un estratto ritagliato come la cella di prova le relazioni
 perdono i membri fuori dal rettangolo, `areas_seen` resta vuoto e la tabella
 `area` esce vuota senza fermare niente.
 
+### Ricostruire con lo stesso dato
+
+`build-graph.sh` da' alla cartella del grafo la data del dato OSM, e rifiuta di
+scrivere nella cartella del grafo in uso (il motore la legge mentre serve le
+richieste): con lo stesso PBF esce con **2**. Ma dopo una modifica a `prepare/` il
+dato e' lo stesso e a cambiare e' il codice del pre-passo, per cui serve ricostruire
+lo stesso. Lo si chiede in modo esplicito:
+
+```bash
+docker build -t wm-routing-prepare prepare/     # PRIMA: senza, il build gira col codice vecchio, in silenzio
+WM_REBUILD_SAME_DATA=1 bash tools/build-graph.sh /data/wm-tiles/sources/italia.osm.pbf /data/wm-routing/terrain.pmtiles
+```
+
+Il grafo nuovo va in una cartella con un nome diverso, `<data>-r<ora della build>`
+(per esempio `2026-11-20T100000Z-r20261121T192537Z`); quello in uso non si tocca. Lo
+`stamp.json` dice sempre la data vera del dato OSM. Controllo e scambio sono quelli
+di sempre, e la pulizia finale tiene il grafo nuovo e quello che era in uso. Senza
+`WM_REBUILD_SAME_DATA=1` il comportamento non cambia, e il messaggio del rifiuto
+rimanda a questo modo. `check-data.sh` (cron) non lo usa mai: ricostruisce solo se il
+dato cambia.
+
+Una sola build per volta: `build-graph.sh` prende un lock su
+`/var/lib/wm-routing/grafi/.build.lock` e, se e' gia' preso (per esempio dal cron di
+notte), esce con **75** senza toccare niente, come per gli altri rinvii. Si rilancia a
+build finita.
+
 Codici d'uscita: **2** dati mancanti o incoerenti (PBF senza data, rettangoli
 che non tornano, tile senza quote), **3** controllo fallito (percorsi di prova
 falliti, quote a zero, nodi calati oltre il 5%, riassunto del pre-passo monco o
 assente), **75** rinviato (rigenerazione
-di wm-tiles in corso o memoria libera insufficiente). In tutti e tre i casi il
+di wm-tiles in corso, un'altra build del grafo in corso o memoria libera
+insufficiente). In tutti e tre i casi il
 grafo in uso resta quello di prima.
 
 ## Rilascio
