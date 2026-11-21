@@ -1,4 +1,4 @@
-> Stato: da approvare
+> Stato: seguito, con tre divergenze annotate in notes.md (chiuso il 2026-11-21)
 
 # Le zone e le regioni dal dato — piano
 
@@ -86,6 +86,8 @@ identificativo.
 ### Task 2: le aree nel pre-passo
 
 **Requisiti:** `R2`, `R3`, `R4`, `R6`, `R8`.
+
+> ⚠️ Divergenza: [la classe delle aree conta anche way e relation](notes.md#2026-11-21--la-classe-delle-aree-conta-anche-way-e-relation)
 
 **File:**
 - Modifica: `prepare/enrich.py` — una classe nuova accanto a `Areas` (riga 191) e il
@@ -324,6 +326,9 @@ la tabella `poi` ha `osm_id` da solo e li confonderebbe.
 ### Task 7: il controllo guarda anche il dato del pre-passo
 
 **Requisiti:** `R11`.
+
+> ⚠️ Divergenza: [il modulo del controllo ha i nomi in inglese](notes.md#2026-11-21--il-modulo-del-controllo-ha-i-nomi-in-inglese)
+> ⚠️ Divergenza: [le aree si pretendono solo se il pre-passo ne ha viste](notes.md#2026-11-21--le-aree-si-pretendono-solo-se-il-pre-passo-ne-ha-viste)
 
 **File:**
 - Crea: `tools/gate-dati.mjs`
