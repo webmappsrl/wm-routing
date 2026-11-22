@@ -1,5 +1,5 @@
 import {it, expect} from 'vitest';
-import {compareData} from '../../tools/gate-data.mjs';
+import {compareData, describeAreas} from '../../tools/gate-data.mjs';
 
 const current = {ways: 1000, pois: 1000, areas_seen: {region: 110, zone: 250}, areas_built: {region: 100, zone: 200}};
 const withOver = (over, base = current) => ({...base, areas_seen: {...base.areas_seen}, areas_built: {...base.areas_built}, ...over});
@@ -105,4 +105,60 @@ it('senza aree viste, il confronto col grafo in uso vale ancora per ways e pois'
 });
 it('una sola area vista basta a pretendere areas_built', () => {
   blocked(compareData(withOver({areas_seen: {zone: 1}, areas_built: {}}), undefined), 'nessuna assemblata');
+});
+
+// Perdita di aree: quante il pre-passo ne vede nel file e quante ne assembla
+// davvero. Una quota di perdita c'e' sempre (le relazioni tagliate dal
+// ritaglio non si chiudono), quindi non c'e' un valore giusto in assoluto: si
+// guarda se la quota peggiora rispetto al grafo in uso.
+it('una perdita di aree che resta come quella del grafo in uso passa', () => {
+  // 10 su 110 perse prima, 10 su 110 adesso
+  expect(compareData(withOver({}), current)).toEqual({ok: true});
+});
+// Il caso va costruito con areas_built invariato: se cala anche quello, a
+// fermare lo scambio basta il calo, e il test passerebbe senza provare niente.
+it('una perdita peggiorata ferma lo scambio anche se le aree assemblate non calano', () => {
+  const r = compareData(withOver({areas_seen: {region: 200, zone: 250}, areas_built: {region: 100, zone: 200}}), current);
+  expect(r.ok).toBe(false);
+  expect(r.reason).toMatch(/200/);
+  expect(r.reason).toMatch(/100/);
+});
+it('senza grafo in uso la perdita non si giudica: non c\'e\' da cosa', () => {
+  expect(compareData(withOver({areas_seen: {region: 110, zone: 250}, areas_built: {region: 55, zone: 200}}), undefined))
+    .toEqual({ok: true});
+});
+
+// La perdita di aree va detta a ogni build, non solo quando peggiora: e' il
+// numero da cui si e' visto che mancavano Piemonte e Trentino, ed era scritto
+// in prepare.json dove nessuno lo leggeva.
+it('il riassunto delle aree dice viste, assemblate e perse per kind', () => {
+  const r = describeAreas({areas_seen: {region: 20, zone: 218}, areas_built: {region: 18, zone: 180}});
+  expect(r).toContain('region 20 viste, 18 assemblate, 2 perse');
+  expect(r).toContain('zone 218 viste, 180 assemblate, 38 perse');
+});
+it('senza aree viste il riassunto lo dice invece di tacere', () => {
+  expect(describeAreas({})).toBe('aree: nessuna vista nel file');
+});
+it('un kind senza perdite non si porta dietro un numero di perse', () => {
+  expect(describeAreas({areas_seen: {region: 20}, areas_built: {region: 20}}))
+    .toBe('aree: region 20 viste, 20 assemblate');
+});
+
+// Un calo voluto esiste: cambiare il criterio con cui si riconosce una regione
+// fa calare il conteggio apposta. Va dichiarato chiave per chiave, cosi' il
+// gate resta acceso per tutto il resto invece di essere spento in blocco.
+it('un calo dichiarato non ferma lo scambio', () => {
+  expect(compareData(withOver({areas_built: {region: 20, zone: 200}}), current,
+                     {accept: ['areas_built.region']})).toEqual({ok: true});
+});
+it('dichiarare una chiave non copre le altre', () => {
+  blocked(compareData(withOver({areas_built: {region: 20, zone: 50}}), current,
+                      {accept: ['areas_built.region']}), 'areas_built.zone');
+});
+it('dichiarare un calo non zittisce una chiave sparita del tutto', () => {
+  blocked(compareData(withOver({areas_built: {zone: 200}}), current,
+                      {accept: ['areas_built.region']}), 'region');
+});
+it('dichiarare un calo non zittisce pois a zero', () => {
+  blocked(compareData(withOver({pois: 0}), current, {accept: ['pois']}), 'pois');
 });
