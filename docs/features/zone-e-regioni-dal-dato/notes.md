@@ -127,15 +127,49 @@ a `area`: senza quei due metodi la differenza con `areas_built` non si potrebbe 
 
 ## Follow-up
 
-- **`/areas` non ha un limite.** La risposta e' illimitata, e il requisito sul numero dichiarato
-  da chi chiama vale solo per `/places`. Oggi e' innocuo perche' le aree sono circa trecento;
-  se il dato crescesse serve un `limit` anche li'.
+- ~~**`/areas` non ha un limite.**~~ Chiuso il 22 novembre 2026 (PR #5): `limit` con
+  `troncato: true`, come `/places`.
 - **La rotta `/areas?kind=zone` non ha un test di rotta suo**: `bbox-route.test.js` la prova con
   `kind=region`, e il filtro per bbox sulle zone e' provato solo in `bbox-search.test.js`.
-- **L'enrich in produzione non e' rifatto.** Finche' non lo e', Pisa, Lucca e le zone non
-  compaiono nel dato vero: la prova e' sul ritaglio di Pisa e sulle fixture.
+- ~~**L'enrich in produzione non e' rifatto.**~~ Rifatto il 21 novembre 2026: il grafo
+  nazionale in uso ha la tabella `area` piena.
 
 - Un rilievo della challenge e' stato smontato e non diventa lavoro: **tornare
   indietro non costa un secondo rebuild**. `tools/build-graph.sh` conserva il grafo
   che era in uso e cancella solo i piu' vecchi; il rollback e' rifare il symlink
   `corrente` e ricreare i container.
+
+
+## Quello che si e' visto provando `/areas` sul dato vero (22 novembre 2026)
+
+La feature era verde su fixture e ritaglio di Pisa, e sul dato nazionale
+rispondeva con cinquantotto regioni di cui diciotto italiane. Chiuso in PR #5 e
+#6; qui resta cio' che la cosa ha insegnato.
+
+- **Un criterio giusto in astratto puo' essere insufficiente sul dato vero.**
+  `boundary=administrative` + `admin_level=4` descrive una regione, e in OSM lo
+  portano anche le way che ne disegnano il confine: gli scogli del confine ISTAT
+  (`Scoglio Pazzi` e' anche `place=islet`). Il tag non si leggeva male, era il
+  dato a essere piu' ricco della definizione.
+- **Il filtro per paese era di troppo, e l'ha detto il motore.** Prima di
+  escludere venticinque regioni straniere valeva la pena chiedersi se il servizio
+  le serve: un giro sul Triglav risponde, uno in Ticino pure, e quelle regioni il
+  dato le contiene intere. Ora ogni area porta `country`.
+- **Il rettangolo del grafo tagliava l'Italia di 1,8 km a ovest e 4,7 km a nord**,
+  e Piemonte e Trentino sparivano senza un messaggio. Il margine interno di 0,05
+  gradi era prudenziale e mai verificato contro i confini veri.
+- **Un conteggio scritto e non letto non protegge da niente.** `areas_seen` contro
+  `areas_built` stava in `prepare.json` dal primo giorno e nominava il problema.
+  Ora si stampa a ogni build e il gate confronta la quota con quella del grafo in uso.
+
+## Follow-up aperti dopo il 22 novembre 2026
+
+- **`build-graph.sh` ucciso lascia il lock preso.** `flock` sta sul descrittore 9,
+  che i figli ereditano: uccidendo lo script, `docker` e `tee` restano vivi, tengono
+  il lock e ogni build successivo esce 75 dicendo che un'altra e' in corso. Capitato
+  davvero oggi. Il `trap` dovrebbe chiudere il process group, non solo lo script.
+- **`/v1/version` dichiara il rettangolo preso dalla configurazione, non dal grafo.**
+  Dopo un cambio di `WM_GRAPH_BBOX` e prima che il build finisca, il servizio
+  dichiara un'area piu' larga di quella che copre davvero.
+- **`/areas?kind=zone` non ha ancora un test di rotta suo** (resta aperto dal
+  rilascio precedente).
