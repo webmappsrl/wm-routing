@@ -39,7 +39,7 @@ export function makeAreasHandler({waysDb}) {
       if (parsed.stato) return res.status(400).json(parsed);
       box = parsed.bbox;
     }
-    const result = searchAreasInBbox(waysDb, {kind, bbox: box});
+    const result = searchAreasInBbox(waysDb, {kind, bbox: box, limit: parseLimit(req.query.limit)});
     res.status(result.stato ? 400 : 200).json(result);
   };
 }

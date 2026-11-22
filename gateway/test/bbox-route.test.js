@@ -131,3 +131,11 @@ it('nessun bbox ne parametro nei log', async () => {
     expect(logged).not.toMatch(/10\.4|43\.7|10\.6|43\.8|7771|bbox|lon|lat|town|zone/);
   } finally { out.mockRestore(); }
 });
+
+it('/areas passa a chi cerca il limit dichiarato nella query string', async () => {
+  // la fixture ha due region: con limit 1 ne torna una e il taglio si dichiara
+  const r = await request(app()).get('/v1/walkiria/areas').query({kind: 'region', limit: 1});
+  expect(r.status).toBe(200);
+  expect(r.body.areas).toHaveLength(1);
+  expect(r.body.troncato).toBe(true);
+});
