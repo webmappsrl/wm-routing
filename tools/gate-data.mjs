@@ -36,11 +36,59 @@ function counts(r, withAreas) {
 // conteggi. Senza una modalita' esplicita (build-graph.sh sa se ritaglia una
 // cella o costruisce il nazionale) non puo' farlo; la modalita' e' lavoro
 // successivo.
-// Non c'e' una soglia sulla quota di aree perse (seen contro built): la perdita
-// sul ritaglio e' strutturale (88 viste, 70 assemblate sulla cella) e una soglia
-// assoluta bloccherebbe build validi. Il calo rispetto al grafo in uso, per kind,
-// intercetta invece una regressione del pre-passo.
-export function compareData(next, current) {
+// Sulla quota di aree perse (seen contro built) non c'e' una soglia assoluta: la
+// perdita sul ritaglio e' strutturale (88 viste, 70 assemblate sulla cella) e un
+// valore fisso bloccherebbe build validi. Si confronta invece con la quota del
+// grafo in uso: se prima se ne perdeva il 9% e adesso il 50%, qualcosa nel
+// pre-passo ha smesso di assemblare, e il calo di areas_built da solo non lo
+// mostra quando il file ne contiene di piu'.
+// Quota di aree che il pre-passo vede nel file e non riesce ad assemblare,
+// per kind. Senza viste non c'e' quota: vale null, e non si confronta.
+function lostShare(r, kind) {
+  const seen = r?.areas_seen?.[kind], built = r?.areas_built?.[kind] ?? 0;
+  if (!isFull(seen) || !Number.isFinite(built)) return null;
+  return (seen - built) / seen;
+}
+
+// Motivi per i kind la cui quota di perdita e' peggiorata oltre la soglia
+// rispetto al grafo in uso. Senza grafo in uso non c'e' da cosa peggiorare.
+function lostGrown(next, current, accepted) {
+  if (!current) return [];
+  const out = [];
+  for (const kind of Object.keys(next?.areas_seen ?? {})) {
+    // chi dichiara il calo di un kind dichiara la stessa causa: cambiare il
+    // criterio con cui si conta sposta insieme assemblate e perse
+    if (accepted.has(`areas_built.${kind}`)) continue;
+    const now = lostShare(next, kind), before = lostShare(current, kind);
+    if (now === null || before === null || now - before <= THRESHOLD) continue;
+    out.push(`areas ${kind}: ${next.areas_seen[kind]} viste e ${next.areas_built?.[kind] ?? 0} assemblate, `
+      + `il grafo in uso ne perdeva il ${Math.round(before * 100)}% e questo il ${Math.round(now * 100)}%`);
+  }
+  return out;
+}
+
+// Riga leggibile su quante aree il pre-passo ha visto nel file e quante ne ha
+// assemblate, per kind. La si stampa a ogni build riuscito: il conteggio stava
+// gia' in prepare.json, ed e' li' che mancavano Piemonte e Trentino senza che
+// nessuno se ne accorgesse.
+export function describeAreas(r) {
+  const parts = [];
+  for (const [kind, seen] of Object.entries(r?.areas_seen ?? {})) {
+    if (!Number.isFinite(seen)) continue;
+    const built = r?.areas_built?.[kind] ?? 0;
+    const lost = seen - built;
+    parts.push(`${kind} ${seen} viste, ${built} assemblate` + (lost > 0 ? `, ${lost} perse` : ''));
+  }
+  return parts.length ? `aree: ${parts.join('; ')}` : 'aree: nessuna vista nel file';
+}
+
+// accept: chiavi (`areas_built.region`, `pois`, ...) per cui un calo rispetto al
+// grafo in uso e' voluto e non ferma lo scambio. Serve quando cambia il criterio
+// con cui si conta, non quando il dato peggiora: dichiararne una lascia acceso
+// il gate su tutte le altre, e non copre comunque una chiave sparita o a zero,
+// che resta un guasto qualunque motivo si adduca.
+export function compareData(next, current, {accept = []} = {}) {
+  const accepted = new Set(Array.isArray(accept) ? accept : []);
   const areasSeen = sum(next?.areas_seen);
   const withAreas = areasSeen > 0;
   const now = counts(next, withAreas);
@@ -57,12 +105,14 @@ export function compareData(next, current) {
   for (const [key, n] of now) {
     if (!isFull(n)) reasons.push(`${key} mancante o a zero`);
   }
+  for (const r of lostGrown(next, current, accepted)) reasons.push(r);
   if (current) {
     for (const [key, before] of counts(current, withAreas)) {
       if (!isFull(before)) continue; // niente da cui calare: basta il controllo sopra
       if (!now.has(key)) { reasons.push(`${key} mancante, nel grafo in uso era ${before}`); continue; }
       const after = now.get(key);
       if (isFull(after) && (before - after) / before > THRESHOLD) {
+        if (accepted.has(key)) { console.error(`   ${key} calato da ${before} a ${after}: calo dichiarato`); continue; }
         reasons.push(`${key} calato da ${before} a ${after}`);
       }
     }

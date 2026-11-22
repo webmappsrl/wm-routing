@@ -42,9 +42,12 @@ export function searchPlacesInBbox(db, {bbox, kinds, limit = DEFAULT_LIMIT} = {}
 // Le aree di un tipo ('region' o 'zone'). Con il bbox, quelle che lo intersecano
 // (due rettangoli si intersecano quando non sono separati su nessun asse; il
 // bordo in comune conta); senza, tutto quello che il dato contiene per quel tipo.
-export function searchAreasInBbox(db, {kind, bbox} = {}) {
+// Il taglio per `limit` si dichiara come per i luoghi: le aree oggi sono poche
+// centinaia, ma una risposta senza tetto cresce con il dato e non con il codice.
+export function searchAreasInBbox(db, {kind, bbox, limit = DEFAULT_LIMIT} = {}) {
   const filterByBbox = bbox !== undefined && bbox !== null;
   if (filterByBbox && !isValidBbox(bbox)) return INVALID_BBOX;
+  const max = Number.isInteger(limit) && limit > 0 ? limit : DEFAULT_LIMIT;
   let sql = 'select osm_type, osm_id, name, kind, min_lon, min_lat, max_lon, max_lat from area where kind = ?';
   const args = [kind];
   if (filterByBbox) {
@@ -52,15 +55,15 @@ export function searchAreasInBbox(db, {kind, bbox} = {}) {
     sql += ' and min_lon <= ? and max_lon >= ? and min_lat <= ? and max_lat >= ?';
     args.push(e, w, n, s);
   }
-  sql += ' order by name, osm_id';
+  sql += ' order by name, osm_id limit ?';
+  args.push(max + 1);
   let rows;
   try { rows = db.prepare(sql).all(...args); }
   catch { return NO_AREA_TABLE; }
   if (!rows.length) return {areas: [], vuoto: filterByBbox ? 'nessuna area nel bbox' : 'nessuna area di questo tipo'};
-  return {
-    areas: rows.map(r => ({
-      name: r.name, kind: r.kind, bbox: [r.min_lon, r.min_lat, r.max_lon, r.max_lat],
-      osmType: r.osm_type, osmId: r.osm_id,
-    })),
-  };
+  const areas = rows.slice(0, max).map(r => ({
+    name: r.name, kind: r.kind, bbox: [r.min_lon, r.min_lat, r.max_lon, r.max_lat],
+    osmType: r.osm_type, osmId: r.osm_id,
+  }));
+  return rows.length > max ? {areas, troncato: true} : {areas};
 }

@@ -6,3 +6,5 @@ data/
 compare/risultati/
 .superpowers/
 .env
+__pycache__/
+*.pyc

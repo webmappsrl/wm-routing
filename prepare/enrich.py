@@ -46,6 +46,10 @@ POI_PLACES = {"city", "town", "village", "hamlet", "locality"}
 
 # Livello amministrativo delle regioni italiane in OSM.
 REGION_ADMIN_LEVEL = "4"
+# Prefisso ISO 3166-2 delle regioni italiane. Il ritaglio prende mezza Europa,
+# e senza questo arrivano le zupanije croate e i cantoni svizzeri, che hanno
+# anche loro admin_level=4.
+REGION_ISO_PREFIX = "IT-"
 
 
 class Pois(osmium.SimpleHandler):
@@ -219,10 +223,20 @@ class Areas(osmium.SimpleHandler):
             pass  # poligono rotto in OSM: si salta
 
 
-def area_kind(tags):
+def area_kind(tags, from_way=False):
     """Zone e regioni: massicci, catene, valli e parchi sono place=region;
-    le regioni amministrative sono boundary=administrative di livello 4."""
-    if tags.get("boundary") == "administrative" and tags.get("admin_level") == REGION_ADMIN_LEVEL:
+    le regioni amministrative sono boundary=administrative di livello 4.
+
+    Per una regione non bastano quei due tag. Le way che disegnano il confine
+    li portano a loro volta, e fra queste ci sono scogli e isolette del
+    confine ISTAT: `Scoglio Pazzi` e' admin_level=4 e place=islet insieme. Le
+    regioni amministrative in OSM sono relation, e sono tutte e sole quelle,
+    quindi da una way non ne esce nessuna. Il codice ISO tiene fuori le
+    regioni degli altri paesi che il ritaglio si porta dietro."""
+    if (not from_way
+            and tags.get("boundary") == "administrative"
+            and tags.get("admin_level") == REGION_ADMIN_LEVEL
+            and tags.get("ISO3166-2", "").startswith(REGION_ISO_PREFIX)):
         return "region"
     if tags.get("place") == "region":
         return "zone"
@@ -244,15 +258,15 @@ class NamedAreas(osmium.SimpleHandler):
         self.seen, self.built = Counter(), Counter()
         self.factory = osmium.geom.WKBFactory()
 
-    def candidate(self, tags):
+    def candidate(self, tags, from_way=False):
         """kind di un oggetto che vale la pena montare: senza nome si salta,
         come per i POI."""
-        kind = area_kind(tags)
+        kind = area_kind(tags, from_way)
         return kind if kind and tags.get("name") else None
 
     def way(self, w):
         if w.is_closed():
-            kind = self.candidate({t.k: t.v for t in w.tags})
+            kind = self.candidate({t.k: t.v for t in w.tags}, from_way=True)
             if kind:
                 self.seen[kind] += 1
 
@@ -263,7 +277,7 @@ class NamedAreas(osmium.SimpleHandler):
 
     def area(self, a):
         tags = {t.k: t.v for t in a.tags}
-        kind = self.candidate(tags)
+        kind = self.candidate(tags, from_way=a.from_way())
         if not kind:
             return
         try:

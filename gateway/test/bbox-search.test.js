@@ -123,6 +123,20 @@ describe('searchAreasInBbox', () => {
       {name: 'Toscana', kind: 'region', bbox: [9.6, 42.2, 12.4, 44.5], osmType: 'relation', osmId: 41977});
   });
 
+  it('il taglio per limit e dichiarato con troncato: true, come per i luoghi', () => {
+    const db = fixtureDb({area: [toscana, liguria, alpi]});
+    const r = searchAreasInBbox(db, {kind: 'region', limit: 1});
+    expect(r.areas).toHaveLength(1);
+    expect(r.troncato).toBe(true);
+  });
+
+  it('con esattamente limit righe non dichiara il taglio', () => {
+    const db = fixtureDb({area: [toscana, liguria]});
+    const r = searchAreasInBbox(db, {kind: 'region', limit: 2});
+    expect(r.areas).toHaveLength(2);
+    expect(r.troncato).toBeUndefined();
+  });
+
   it('con un bbox restituisce le aree che lo intersecano, non solo le contenute', () => {
     const db = fixtureDb({area: [toscana, liguria, alpi, montePisano]});
     // Toscana contiene il bbox; Monte Pisano coincide; Liguria e separata (max_lon 10.1 < w);
