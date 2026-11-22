@@ -182,3 +182,25 @@ def test_area_incompleta_dichiarata(result):
     assert summary["areas_seen"]["zone"] - summary["areas_built"]["zone"] == 1
     assert summary["areas_seen"]["region"] == summary["areas_built"]["region"] == 1
     assert "Zona Incompleta" not in aree(summary)
+
+
+def test_uno_scoglio_non_e_una_regione(result):
+    """w60 e' un pezzo del confine regionale ISTAT: porta admin_level=4 come
+    la regione di cui segna il bordo, ma e' uno scoglio. Le regioni
+    amministrative in OSM sono relation, e sono tutte e sole quelle."""
+    _, _, summary = result
+    assert "Scoglio di Prova" not in aree(summary)
+
+
+def test_una_regione_estera_non_entra(result):
+    """Il ritaglio prende mezza Europa: senza un filtro arrivano le zupanije
+    croate e i cantoni svizzeri, che hanno anche loro admin_level=4."""
+    _, _, summary = result
+    assert "Regione Estera" not in aree(summary)
+
+
+def test_una_regione_italiana_resta(result):
+    """Il controspecchio dei due test qui sopra: il filtro non deve portarsi
+    via anche quello che serve."""
+    _, _, summary = result
+    assert aree(summary)["Regione di Prova"]["kind"] == "region"

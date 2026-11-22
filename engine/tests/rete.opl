@@ -32,6 +32,14 @@ n50 v1 x10.040 y44.040
 n51 v1 x10.060 y44.040
 n52 v1 x10.060 y44.060
 n53 v1 x10.040 y44.060
+n60 v1 x10.070 y44.070
+n61 v1 x10.072 y44.070
+n62 v1 x10.072 y44.072
+n63 v1 x10.070 y44.072
+n70 v1 x10.080 y44.080
+n71 v1 x10.090 y44.080
+n72 v1 x10.090 y44.090
+n73 v1 x10.080 y44.090
 w1 v1 Thighway=path Nn1,n2
 w2 v1 Thighway=path Nn1,n3
 w3 v1 Thighway=path Nn3,n2
@@ -50,6 +58,8 @@ w17 v1 Thighway=via_ferrata Nn2,n17
 w18 v1 Thighway=path,sac_scale=hiking Nn17,n99
 w40 v1 T Nn40,n41,n42,n43,n40
 w50 v1 T Nn50,n51,n52,n53,n50
+w60 v1 Tboundary=administrative,admin_level=4,place=islet,natural=coastline,name=Scoglio%20%di%20%Prova Nn60,n61,n62,n63,n60
+w70 v1 T Nn70,n71,n72,n73,n70
 r1 v1 Ttype=route,route=hiking,network=lwn,cai_scale=EE,ref=139 Mw1@
 r2 v1 Ttype=route,route=hiking,network=lwn,cai_scale=T,ref=00 Mw2@,w3@,w5@
 r3 v1 Ttype=route,route=hiking,network=lwn,ref=00 Mw2@
@@ -57,5 +67,6 @@ r4 v1 Ttype=route,route=hiking,network=lwn Mw2@
 r5 v1 Ttype=route,route=mtb,cai_scale:mtb=MC+,cai_scale:mtb:uphill=BC,ref=MTB1 Mw2@,w5@
 r6 v1 Ttype=route,route=mtb,cai_scale:mtb=BC,ref=MTB2 Mw2@
 r40 v1 Ttype=multipolygon,place=region,name=Massiccio%20%di%20%Prova Mw40@outer
-r41 v1 Ttype=boundary,boundary=administrative,admin_level=4,name=Regione%20%di%20%Prova Mw50@outer
+r41 v1 Ttype=boundary,boundary=administrative,admin_level=4,ISO3166-2=IT-52,name=Regione%20%di%20%Prova Mw50@outer
+r43 v1 Ttype=boundary,boundary=administrative,admin_level=4,ISO3166-2=HR-07,name=Regione%20%Estera Mw70@outer
 r42 v1 Ttype=multipolygon,place=region,name=Zona%20%Incompleta Mw999@outer
