@@ -48,7 +48,7 @@ export function searchAreasInBbox(db, {kind, bbox, limit = DEFAULT_LIMIT} = {}) 
   const filterByBbox = bbox !== undefined && bbox !== null;
   if (filterByBbox && !isValidBbox(bbox)) return INVALID_BBOX;
   const max = Number.isInteger(limit) && limit > 0 ? limit : DEFAULT_LIMIT;
-  let sql = 'select osm_type, osm_id, name, kind, min_lon, min_lat, max_lon, max_lat from area where kind = ?';
+  let sql = 'select osm_type, osm_id, name, kind, country, min_lon, min_lat, max_lon, max_lat from area where kind = ?';
   const args = [kind];
   if (filterByBbox) {
     const [w, s, e, n] = bbox;
@@ -62,7 +62,10 @@ export function searchAreasInBbox(db, {kind, bbox, limit = DEFAULT_LIMIT} = {}) 
   catch { return NO_AREA_TABLE; }
   if (!rows.length) return {areas: [], vuoto: filterByBbox ? 'nessuna area nel bbox' : 'nessuna area di questo tipo'};
   const areas = rows.slice(0, max).map(r => ({
-    name: r.name, kind: r.kind, bbox: [r.min_lon, r.min_lat, r.max_lon, r.max_lat],
+    // country e' null per le zone (massicci, catene): non hanno ISO3166-2, e
+    // quelle a cavallo del confine non sono di un paese solo
+    name: r.name, kind: r.kind, country: r.country ?? null,
+    bbox: [r.min_lon, r.min_lat, r.max_lon, r.max_lat],
     osmType: r.osm_type, osmId: r.osm_id,
   }));
   return rows.length > max ? {areas, troncato: true} : {areas};

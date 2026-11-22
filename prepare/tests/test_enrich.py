@@ -180,7 +180,8 @@ def test_area_incompleta_dichiarata(result):
     _, _, summary = result
     # r42 cita un membro che nel file non c'e': vista, non assemblata
     assert summary["areas_seen"]["zone"] - summary["areas_built"]["zone"] == 1
-    assert summary["areas_seen"]["region"] == summary["areas_built"]["region"] == 1
+    # r41 (italiana) e r43 (estera): viste e assemblate tutte e due
+    assert summary["areas_seen"]["region"] == summary["areas_built"]["region"] == 2
     assert "Zona Incompleta" not in aree(summary)
 
 
@@ -192,11 +193,23 @@ def test_uno_scoglio_non_e_una_regione(result):
     assert "Scoglio di Prova" not in aree(summary)
 
 
-def test_una_regione_estera_non_entra(result):
-    """Il ritaglio prende mezza Europa: senza un filtro arrivano le zupanije
-    croate e i cantoni svizzeri, che hanno anche loro admin_level=4."""
+def test_una_regione_estera_entra_col_suo_paese(result):
+    """Il ritaglio prende mezza Europa e il motore instrada anche li': una
+    regione straniera intera e' un dato buono, purche' si sappia di chi e'."""
     _, _, summary = result
-    assert "Regione Estera" not in aree(summary)
+    assert aree(summary)["Regione Estera"]["country"] == "HR"
+
+
+def test_una_regione_italiana_porta_it(result):
+    _, _, summary = result
+    assert aree(summary)["Regione di Prova"]["country"] == "IT"
+
+
+def test_una_zona_non_ha_paese(result):
+    """Massicci e catene non hanno ISO3166-2, e quelle a cavallo del confine
+    non sono di un paese solo: il campo resta vuoto invece di inventare."""
+    _, _, summary = result
+    assert aree(summary)["Massiccio di Prova"]["country"] is None
 
 
 def test_una_regione_italiana_resta(result):

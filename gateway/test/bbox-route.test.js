@@ -18,10 +18,10 @@ function fixtureDb({places = [], areas = []} = {}) {
   db.exec('create table poi (osm_id integer primary key, name text, kind text,' +
     ' ele real, lon real, lat real, wikipedia text, wikidata text)');
   db.exec('create table area (osm_type text, osm_id integer, name text, kind text,' +
-    ' min_lon real, min_lat real, max_lon real, max_lat real)');
+    ' country text, min_lon real, min_lat real, max_lon real, max_lat real)');
   const insP = db.prepare('insert into poi values (?, ?, ?, ?, ?, ?, ?, ?)');
   for (const r of places) insP.run(...r);
-  const insA = db.prepare('insert into area values (?, ?, ?, ?, ?, ?, ?, ?)');
+  const insA = db.prepare('insert into area values (?, ?, ?, ?, ?, ?, ?, ?, ?)');
   for (const r of areas) insA.run(...r);
   db.close();
   return new Database(path, {readonly: true});
@@ -33,9 +33,9 @@ const places = [
   [3, 'Citta Lontana', 'city', null, 12.0, 45.0, null, null],
 ];
 const areas = [
-  ['relation', 10, 'Toscana', 'region', 9.7, 42.2, 12.4, 44.5],
-  ['relation', 11, 'Veneto', 'region', 10.6, 44.8, 13.1, 46.7],
-  ['relation', 20, 'Zona Prova', 'zone', 10.4, 43.7, 10.6, 43.8],
+  ['relation', 10, 'Toscana', 'region', 'IT', 9.7, 42.2, 12.4, 44.5],
+  ['relation', 11, 'Veneto', 'region', 'IT', 10.6, 44.8, 13.1, 46.7],
+  ['relation', 20, 'Zona Prova', 'zone', null, 10.4, 43.7, 10.6, 43.8],
 ];
 
 const app = (waysDb = fixtureDb({places, areas})) =>
@@ -138,4 +138,9 @@ it('/areas passa a chi cerca il limit dichiarato nella query string', async () =
   expect(r.status).toBe(200);
   expect(r.body.areas).toHaveLength(1);
   expect(r.body.troncato).toBe(true);
+});
+
+it('/areas: il paese arriva fino alla risposta della rotta', async () => {
+  const r = await request(app()).get('/v1/walkiria/areas').query({kind: 'region'});
+  expect(r.body.areas.map(a => a.country)).toEqual(['IT', 'IT']);
 });

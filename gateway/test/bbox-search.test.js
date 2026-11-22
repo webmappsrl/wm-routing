@@ -20,8 +20,9 @@ function fixtureDb({poi = [], area = []} = {}, {withPoi = true, withArea = true}
   }
   if (withArea) {
     db.exec('create table area (osm_type text, osm_id integer, name text, kind text,' +
-      ' min_lon real, min_lat real, max_lon real, max_lat real, primary key (osm_type, osm_id))');
-    const ins = db.prepare('insert into area values (?, ?, ?, ?, ?, ?, ?, ?)');
+      ' country text, min_lon real, min_lat real, max_lon real, max_lat real,' +
+      ' primary key (osm_type, osm_id))');
+    const ins = db.prepare('insert into area values (?, ?, ?, ?, ?, ?, ?, ?, ?)');
     for (const r of area) ins.run(...r);
   }
   db.close();
@@ -110,17 +111,19 @@ describe('searchPlacesInBbox', () => {
 });
 
 describe('searchAreasInBbox', () => {
-  const toscana = ['relation', 41977, 'Toscana', 'region', 9.6, 42.2, 12.4, 44.5];
-  const liguria = ['relation', 301482, 'Liguria', 'region', 7.5, 43.7, 10.1, 44.7];
-  const alpi = ['relation', 7, 'Alpi Apuane', 'zone', 10.1, 43.7, 10.4, 44.3];
-  const montePisano = ['relation', 8, 'Monte Pisano', 'zone', 10.4, 43.65, 10.6, 43.8];
+  const toscana = ['relation', 41977, 'Toscana', 'region', 'IT', 9.6, 42.2, 12.4, 44.5];
+  const liguria = ['relation', 301482, 'Liguria', 'region', 'IT', 7.5, 43.7, 10.1, 44.7];
+  const alpi = ['relation', 7, 'Alpi Apuane', 'zone', null, 10.1, 43.7, 10.4, 44.3];
+  const montePisano = ['relation', 8, 'Monte Pisano', 'zone', null, 10.4, 43.65, 10.6, 43.8];
+  const ticino = ['relation', 1686631, 'Ticino', 'region', 'CH', 8.3, 45.8, 9.2, 46.6];
 
   it('kind region senza bbox elenca tutte le regioni, ognuna col proprio bbox', () => {
     const db = fixtureDb({area: [toscana, liguria, alpi]});
     const r = searchAreasInBbox(db, {kind: 'region'});
     expect(r.areas.map(a => a.name).sort()).toEqual(['Liguria', 'Toscana']);
     expect(r.areas.find(a => a.name === 'Toscana')).toEqual(
-      {name: 'Toscana', kind: 'region', bbox: [9.6, 42.2, 12.4, 44.5], osmType: 'relation', osmId: 41977});
+      {name: 'Toscana', kind: 'region', country: 'IT',
+       bbox: [9.6, 42.2, 12.4, 44.5], osmType: 'relation', osmId: 41977});
   });
 
   it('il taglio per limit e dichiarato con troncato: true, come per i luoghi', () => {
@@ -146,8 +149,20 @@ describe('searchAreasInBbox', () => {
       .toEqual(['Alpi Apuane', 'Monte Pisano']);
   });
 
+  it('una regione straniera c\'e\', e porta il suo paese', () => {
+    const db = fixtureDb({area: [toscana, ticino]});
+    const r = searchAreasInBbox(db, {kind: 'region'});
+    expect(r.areas.map(a => [a.name, a.country]).sort())
+      .toEqual([['Ticino', 'CH'], ['Toscana', 'IT']]);
+  });
+
+  it('una zona non ha paese, e il campo lo dice invece di mentire', () => {
+    const db = fixtureDb({area: [alpi]});
+    expect(searchAreasInBbox(db, {kind: 'zone'}).areas[0].country).toBe(null);
+  });
+
   it('un\'area che sconfina solo in parte e inclusa', () => {
-    const db = fixtureDb({area: [['relation', 9, 'Valle Lunga', 'zone', 10.55, 43.7, 11.5, 43.9]]});
+    const db = fixtureDb({area: [['relation', 9, 'Valle Lunga', 'zone', null, 10.55, 43.7, 11.5, 43.9]]});
     expect(searchAreasInBbox(db, {kind: 'zone', bbox: BBOX}).areas.map(a => a.name)).toEqual(['Valle Lunga']);
   });
 
