@@ -1,7 +1,8 @@
 // Confronto con il GraphHopper di produzione: stessi punti, due motori. Ogni
 // differenza oltre soglia va classificata in compare/verdicts.json come
 // "voluta" o "difetto", con il motivo; esce 1 se ne resta una senza verdetto.
-import {readFileSync, writeFileSync, mkdirSync} from 'node:fs';
+import {writeFileSync, mkdirSync} from 'node:fs';
+import {readJsonFile} from './json-file.mjs';
 
 const NEW = process.env.WM_GATEWAY ?? 'http://127.0.0.1:8991/v1/preview/route';
 const PROD = process.env.WM_PROD ?? 'https://graphhopper.webmapp.it/route';
@@ -36,8 +37,13 @@ async function post(url, body, headers = {}) {
 async function main() {
   const i = process.argv.indexOf('--giro');
   const giro = i > 0 ? process.argv[i + 1] : 'ultimo';
-  const routes = JSON.parse(readFileSync('compare/routes.json', 'utf8'));
-  const verdicts = JSON.parse(readFileSync('compare/verdicts.json', 'utf8'));
+  // un file d'ingresso rotto va detto per nome: lo stack trace di JSON.parse
+  // non dice nemmeno quale dei due stava leggendo
+  const [routes, verdicts] = ['compare/routes.json', 'compare/verdicts.json'].map((f) => {
+    const r = readJsonFile(f);
+    if (!r.ok) { console.error(`!! ${r.reason}`); process.exit(1); }
+    return r.value;
+  });
   const rows = [];
   let open = 0;
   for (const r of routes) {
