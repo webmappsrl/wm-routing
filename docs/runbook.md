@@ -23,9 +23,10 @@ docker run --rm -v /data/wm-tiles/sources:/in:ro -v "$PWD/tools":/tools:ro wm-ro
 ## Primo avvio
 
 ```bash
-bash tools/build-graph.sh /data/wm-tiles/sources/italia.osm.pbf /data/wm-routing/terrain.pmtiles
-DOMINIO=routing.maphub.it bash infra/pubblica-routing.sh
-bash tools/log-check.sh
+# incatenati: se il build non mette in uso il grafo, pubblicare non ha senso
+bash tools/build-graph.sh /data/wm-tiles/sources/italia.osm.pbf /data/wm-routing/terrain.pmtiles \
+  && DOMINIO=routing.maphub.it bash infra/pubblica-routing.sh \
+  && bash tools/log-check.sh
 ```
 
 `build-graph.sh` ritaglia e arricchisce il PBF, controlla che ogni via abbia
@@ -49,6 +50,34 @@ calano oltre il 5% per tipo, o se il grafo in uso ne aveva e il nuovo non ne ved
 piu' nessuna. Su un estratto ritagliato come la cella di prova le relazioni
 perdono i membri fuori dal rettangolo, `areas_seen` resta vuoto e la tabella
 `area` esce vuota senza fermare niente.
+
+Il controllo guarda anche la **quota di aree perse**, cioe' quante il pre-passo
+ne vede nel file (`areas_seen`) e quante ne assembla davvero (`areas_built`).
+Non c'e' un valore giusto in assoluto — le relazioni tagliate dal ritaglio non
+si chiudono, e una parte si perde sempre — percio' si confronta con la quota del
+grafo in uso: se prima se ne perdeva il 9% e adesso il 50%, qualcosa ha smesso
+di assemblare, e il calo di `areas_built` da solo non lo mostra quando il file
+ne contiene di piu'. A ogni build riuscito il conteggio si stampa per esteso
+(`aree: region 20 viste, 18 assemblate, 2 perse`): era gia' in `prepare.json`,
+dove non lo leggeva nessuno, ed e' li' che mancavano Piemonte e Trentino.
+
+### Dichiarare un calo voluto
+
+Cambiare il criterio con cui si conta fa calare un conteggio apposta, e il
+controllo lo legge come una regressione. Il caso vero: stringere la definizione
+di `region` ha portato le regioni da 58 a 18, e il gate ha ragione a fermarsi
+davanti a un calo del 69% che non sa spiegare. Si dichiara chiave per chiave, per
+un solo build:
+
+```bash
+WM_ACCEPT_DROP=areas_built.region bash tools/build-graph.sh <pbf> <terrain.pmtiles>
+```
+
+Non si scrive in nessun file e non lascia traccia nella configurazione: il build
+dopo riparte col controllo pieno, e il nuovo valore e' ormai quello del grafo in
+uso. Dichiarare una chiave lascia acceso il controllo su tutte le altre, e non
+zittisce comunque una chiave sparita o a zero: quelli restano guasti qualunque
+sia il motivo addotto.
 
 ### Ricostruire con lo stesso dato
 
@@ -136,25 +165,50 @@ esempi si lanciano quindi dal server (`ssh wm-tiles`), direttamente sul gateway.
 D=http://127.0.0.1:8991
 # paesi e citta' dentro il rettangolo (kinds facoltativo; limit 200 di default, tetto 2000)
 curl -s "$D/v1/walkiria/places?bbox=10.4,43.7,10.6,43.8&kinds=city,town&limit=50"
-# le regioni che intersecano il rettangolo (kind obbligatorio: region o zone; bbox facoltativo)
+# le regioni che intersecano il rettangolo (kind obbligatorio: region o zone;
+# bbox facoltativo; limit 200 di default, tetto 2000 come per places)
 curl -s "$D/v1/walkiria/areas?kind=region&bbox=10.4,43.7,10.6,43.8"
 ```
 
 `places` risponde `{"places":[{"name","kind","lonLat":[lon,lat],"ele","osmId"}]}`,
 con `"troncato":true` se c'era altro oltre `limit`. `areas` risponde
-`{"areas":[{"name","kind","bbox":[w,s,e,n],"osmType","osmId"}]}`, senza taglio.
+`{"areas":[{"name","kind","bbox":[w,s,e,n],"osmType","osmId"}]}`, anch'essa con
+`"troncato":true` se c'era altro oltre `limit`.
 Un risultato vuoto porta `vuoto` col motivo. Un `bbox` mal scritto da `400
 {"stato":"bbox_non_valido"}`, un `kind` diverso da `region` e `zone` su `/areas`
 da `400 {"stato":"kind_non_valido"}`.
 
-## Aggiornamento notturno
+**Cosa conta come `region`.** Le sole relation `boundary=administrative` di
+`admin_level=4` con un codice `ISO3166-2` che comincia per `IT-`. Gli altri due
+requisiti non sono ovvi e servono entrambi: le way che disegnano il confine
+portano gli stessi tag, e fra quelle ci sono gli scogli del confine ISTAT
+(`Scoglio Pazzi` e' `admin_level=4` e `place=islet` insieme); il codice ISO tiene
+fuori le zupanije croate e i cantoni svizzeri, che il ritaglio largo si porta
+dietro. Le `zone` (`place=region`: massicci, catene, valli, parchi) non hanno un
+filtro per paese, e le catene a cavallo del confine restano di proposito.
+
+## Aggiornamento del dato
+
+**Oggi si fa a mano, e non c'e' nessun cron.** Su `wm-tiles` non c'e' una riga di
+crontab ne' un timer systemd che richiami `check-data.sh`: il grafo si ricostruisce
+quando qualcuno lancia il comando. Scritto qui perche' il contrario sembra vero e
+costa caro: per un mese il dato e' rimasto fermo al 20 ottobre senza che la cosa
+saltasse all'occhio di nessuno.
+
+`check-data.sh` ricostruisce solo se la data del PBF di wm-tiles
+(`osmosis_replication_timestamp`, scritta da `aggiorna-osm.sh`) e' cambiata,
+quindi lanciarlo quando non serve non costa niente:
+
+```bash
+ssh wm-tiles /srv/wm-routing/tools/check-data.sh
+```
+
+Per farlo da se', la riga da installare e' questa — ma finche' nessuno la
+installa davvero, resta un esempio, non una descrizione di come stanno le cose:
 
 ```
 15 3 * * * /srv/wm-routing/tools/check-data.sh >> /var/log/wm-routing-dati.log 2>&1
 ```
-
-`check-data.sh` ricostruisce solo se la data del PBF di wm-tiles
-(`osmosis_replication_timestamp`, scritta da `aggiorna-osm.sh`) e' cambiata.
 
 ## Tornare al grafo precedente
 
