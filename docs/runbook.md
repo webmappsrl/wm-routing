@@ -64,10 +64,11 @@ dove non lo leggeva nessuno, ed e' li' che mancavano Piemonte e Trentino.
 ### Dichiarare un calo voluto
 
 Cambiare il criterio con cui si conta fa calare un conteggio apposta, e il
-controllo lo legge come una regressione. Il caso vero: stringere la definizione
-di `region` ha portato le regioni da 58 a 18, e il gate ha ragione a fermarsi
-davanti a un calo del 69% che non sa spiegare. Si dichiara chiave per chiave, per
-un solo build:
+controllo lo legge come una regressione. Il caso vero: pretendere che una regione
+sia una relation ha tolto quattordici scogli dalle cinquantotto che `/areas`
+elencava, e un calo del 24% il gate ha ragione a fermarlo, perche' dal conteggio
+non si vede che cosa se n'e' andato. Si dichiara chiave per chiave, per un solo
+build:
 
 ```bash
 WM_ACCEPT_DROP=areas_built.region bash tools/build-graph.sh <pbf> <terrain.pmtiles>
@@ -172,20 +173,28 @@ curl -s "$D/v1/walkiria/areas?kind=region&bbox=10.4,43.7,10.6,43.8"
 
 `places` risponde `{"places":[{"name","kind","lonLat":[lon,lat],"ele","osmId"}]}`,
 con `"troncato":true` se c'era altro oltre `limit`. `areas` risponde
-`{"areas":[{"name","kind","bbox":[w,s,e,n],"osmType","osmId"}]}`, anch'essa con
-`"troncato":true` se c'era altro oltre `limit`.
+`{"areas":[{"name","kind","country","bbox":[w,s,e,n],"osmType","osmId"}]}`,
+anch'essa con `"troncato":true` se c'era altro oltre `limit`.
 Un risultato vuoto porta `vuoto` col motivo. Un `bbox` mal scritto da `400
 {"stato":"bbox_non_valido"}`, un `kind` diverso da `region` e `zone` su `/areas`
 da `400 {"stato":"kind_non_valido"}`.
 
 **Cosa conta come `region`.** Le sole relation `boundary=administrative` di
-`admin_level=4` con un codice `ISO3166-2` che comincia per `IT-`. Gli altri due
-requisiti non sono ovvi e servono entrambi: le way che disegnano il confine
-portano gli stessi tag, e fra quelle ci sono gli scogli del confine ISTAT
-(`Scoglio Pazzi` e' `admin_level=4` e `place=islet` insieme); il codice ISO tiene
-fuori le zupanije croate e i cantoni svizzeri, che il ritaglio largo si porta
-dietro. Le `zone` (`place=region`: massicci, catene, valli, parchi) non hanno un
-filtro per paese, e le catene a cavallo del confine restano di proposito.
+`admin_level=4`. Che siano relation non e' un dettaglio: le way che disegnano il
+confine portano gli stessi tag, e fra quelle ci sono gli scogli del confine
+ISTAT — `Scoglio Pazzi` e' `admin_level=4` e `place=islet` insieme, e nel dato
+nazionale ne entravano quattordici.
+
+**Il paese non e' un filtro.** Il rettangolo del grafo prende anche Istria,
+Ticino, Corsica e Slovenia, e li' il motore instrada davvero (provato: un giro
+sul Triglav risponde). Le regioni straniere che il dato contiene ci sono per
+intero — il bbox della contea di Bjelovar coincide cifra per cifra con quello di
+OSM — e nasconderle farebbe dire al servizio che la Slovenia non esiste mentre
+ci costruisce dentro un itinerario. Ogni area porta percio' `country`, ricavato
+dal prefisso di `ISO3166-2` (`IT-52` -> `IT`), e chi chiama filtra se vuole. Per
+le `zone` (`place=region`: massicci, catene, valli, parchi) `country` e' `null`:
+non hanno `ISO3166-2`, e una catena a cavallo del confine non e' di un paese
+solo.
 
 ## Aggiornamento del dato
 

@@ -46,10 +46,13 @@ POI_PLACES = {"city", "town", "village", "hamlet", "locality"}
 
 # Livello amministrativo delle regioni italiane in OSM.
 REGION_ADMIN_LEVEL = "4"
-# Prefisso ISO 3166-2 delle regioni italiane. Il ritaglio prende mezza Europa,
-# e senza questo arrivano le zupanije croate e i cantoni svizzeri, che hanno
-# anche loro admin_level=4.
-REGION_ISO_PREFIX = "IT-"
+# Da ISO 3166-2 ("IT-52", "HR-07") si ricava il paese di una regione. Il
+# ritaglio prende mezza Europa e il motore instrada anche fuori dall'Italia:
+# una regione straniera intera e' un dato buono, purche' si sappia di chi e'.
+def area_country(tags):
+    iso = tags.get("ISO3166-2", "")
+    paese = iso.split("-", 1)[0]
+    return paese or None
 
 
 class Pois(osmium.SimpleHandler):
@@ -231,12 +234,11 @@ def area_kind(tags, from_way=False):
     li portano a loro volta, e fra queste ci sono scogli e isolette del
     confine ISTAT: `Scoglio Pazzi` e' admin_level=4 e place=islet insieme. Le
     regioni amministrative in OSM sono relation, e sono tutte e sole quelle,
-    quindi da una way non ne esce nessuna. Il codice ISO tiene fuori le
-    regioni degli altri paesi che il ritaglio si porta dietro."""
+    quindi da una way non ne esce nessuna. Di che paese sia la regione non
+    cambia se sia una regione: lo dice `area_country`, e chi chiama sceglie."""
     if (not from_way
             and tags.get("boundary") == "administrative"
-            and tags.get("admin_level") == REGION_ADMIN_LEVEL
-            and tags.get("ISO3166-2", "").startswith(REGION_ISO_PREFIX)):
+            and tags.get("admin_level") == REGION_ADMIN_LEVEL):
         return "region"
     if tags.get("place") == "region":
         return "zone"
@@ -286,7 +288,7 @@ class NamedAreas(osmium.SimpleHandler):
             return  # poligono rotto in OSM: si salta
         min_lon, min_lat, max_lon, max_lat = geom.bounds
         osm_type = "way" if a.from_way() else "relation"
-        self.rows.append((osm_type, a.orig_id(), tags["name"], kind,
+        self.rows.append((osm_type, a.orig_id(), tags["name"], kind, area_country(tags),
                           min_lon, min_lat, max_lon, max_lat))
         self.built[kind] += 1
 
@@ -483,9 +485,9 @@ def enrich(src, dst, db_path, tiles_path=None):
                " refs_mtb text, rel_ids_mtb text)")
     db.execute("drop table if exists area")
     db.execute("create table area (osm_type text, osm_id integer, name text, kind text,"
-               " min_lon real, min_lat real, max_lon real, max_lat real,"
+               " country text, min_lon real, min_lat real, max_lon real, max_lat real,"
                " primary key (osm_type, osm_id))")
-    db.executemany("insert or replace into area values (?,?,?,?,?,?,?,?)", named_areas.rows)
+    db.executemany("insert or replace into area values (?,?,?,?,?,?,?,?,?)", named_areas.rows)
 
     classify = Classify(areas, db)
     classify.apply_file(src, locations=True, idx=NODE_INDEX)
